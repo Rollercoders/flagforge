@@ -33,7 +33,11 @@ function bootstrapAdminPassword(): void {
 
   const envPath = join(process.cwd(), '.env');
   const line = `\nADMIN_PASSWORD=${password}\n`;
-  appendFileSync(envPath, line, 'utf8');
+  try {
+    appendFileSync(envPath, line, 'utf8');
+  } catch (_err) {
+    console.warn('Warning: could not persist ADMIN_PASSWORD to .env — store it manually:', password);
+  }
 
   console.log('\n========================================');
   console.log('  ADMIN PASSWORD GENERATED (first boot)');
@@ -60,6 +64,14 @@ async function main() {
 
   const app = express();
   const sessions: SessionStore = new Map();
+
+  // Periodically clean up expired sessions to prevent memory leak
+  setInterval(() => {
+    const now = new Date();
+    for (const [token, expiresAt] of sessions) {
+      if (expiresAt <= now) sessions.delete(token);
+    }
+  }, 3_600_000).unref(); // every hour, don't block process exit
 
   app.use(cors());
   app.use(express.json());
@@ -91,6 +103,11 @@ async function main() {
 
   const uiDistPath = join(__dirname, '../ui/dist');
   app.use(express.static(uiDistPath));
+
+  // JSON 404 for unmatched API routes
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
 
   app.get('*', (_req, res) => {
     res.sendFile(join(uiDistPath, 'index.html'), (err) => {
