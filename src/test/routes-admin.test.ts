@@ -152,6 +152,15 @@ describe('Admin Routes', () => {
         name: 'Key 3',
         environment: 'development'
       });
+
+      // Wait 1ms to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 1));
+
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
+      });
     });
 
     it('should return all API keys', async () => {
@@ -159,7 +168,9 @@ describe('Admin Routes', () => {
         .get('/admin/api-keys');
 
       expect(response.status).toBe(200);
+      // 4 keys were created but __ui_admin__ must be filtered out
       expect(response.body).toHaveLength(3);
+      expect(response.body.every((k: { name: string }) => k.name !== '__ui_admin__')).toBe(true);
     });
 
     it('should return keys in descending order by creation date', async () => {
