@@ -78,8 +78,8 @@ export function ApiKeysPage() {
     void navigator.clipboard.writeText(key).then(() => showToast('Key copied to clipboard'));
   }
 
-  function maskKey(key: string): string {
-    return key.slice(0, 6) + '••••••••••••••••';
+  function maskKey(): string {
+    return 'rf_' + '••••••••••••••••';
   }
 
   return (
@@ -184,7 +184,7 @@ export function ApiKeysPage() {
                     border: '1px solid #e5e7eb',
                   }}
                 >
-                  {maskKey(apiKey.key)}
+                  {maskKey()}
                 </code>
                 <button
                   onClick={() => copyToClipboard(apiKey.key)}
