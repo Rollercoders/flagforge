@@ -3,6 +3,7 @@ export async function login(password: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
+    credentials: 'same-origin',
   });
   if (!res.ok) {
     const data = await res.json() as { error?: string };
@@ -11,12 +12,16 @@ export async function login(password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/auth/logout', { method: 'POST' });
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error('Logout failed');
 }
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const res = await fetch('/auth/me');
+    const res = await fetch('/auth/me', { credentials: 'same-origin' });
     if (!res.ok) return false;
     const data = await res.json() as { authenticated: boolean };
     return data.authenticated;
