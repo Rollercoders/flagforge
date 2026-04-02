@@ -20,7 +20,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 4,
 };
 
-export function ApiKeysPage() {
+export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
   const { showToast } = useToast();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,7 @@ export function ApiKeysPage() {
       setNewName('');
       setNewEnv('');
       await loadKeys();
+      onKeysChange?.();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create API key', 'error');
     } finally {
@@ -69,6 +70,7 @@ export function ApiKeysPage() {
       showToast('API key deleted');
       setConfirmDeleteId(null);
       await loadKeys();
+      onKeysChange?.();
     } catch {
       showToast('Failed to delete API key', 'error');
     }

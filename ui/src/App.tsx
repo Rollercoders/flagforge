@@ -1,9 +1,8 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FlagsPage } from './pages/FlagsPage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
-
-const ENVIRONMENTS = ['production', 'staging', 'development'];
+import { getApiKeys } from './api/apiKeys';
 
 const globalStyles = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,7 +12,16 @@ const globalStyles = `
 `;
 
 export default function App() {
-  const [environment, setEnvironment] = useState('production');
+  const [environments, setEnvironments] = useState<string[]>([]);
+  const [environment, setEnvironment] = useState('');
+
+  useEffect(() => {
+    getApiKeys().then(keys => {
+      const envs = [...new Set(keys.map(k => k.environment))].sort();
+      setEnvironments(envs);
+      if (envs.length > 0) setEnvironment(envs[0]);
+    }).catch(() => {});
+  }, []);
 
   return (
     <>
@@ -97,9 +105,12 @@ export default function App() {
                 cursor: 'pointer',
               }}
             >
-              {ENVIRONMENTS.map(env => (
-                <option key={env} value={env}>{env}</option>
-              ))}
+              {environments.length === 0
+                ? <option value="">No environments yet</option>
+                : environments.map(env => (
+                    <option key={env} value={env}>{env}</option>
+                  ))
+              }
             </select>
           </div>
         </aside>
@@ -109,7 +120,13 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/flags" replace />} />
             <Route path="/flags" element={<FlagsPage environment={environment} />} />
-            <Route path="/api-keys" element={<ApiKeysPage />} />
+            <Route path="/api-keys" element={<ApiKeysPage onKeysChange={() => {
+              getApiKeys().then(keys => {
+                const envs = [...new Set(keys.map(k => k.environment))].sort();
+                setEnvironments(envs);
+                if (!envs.includes(environment)) setEnvironment(envs[0] ?? '');
+              }).catch(() => {});
+            }} />} />
           </Routes>
         </main>
       </div>
