@@ -1308,6 +1308,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/cookie-parser@npm:^1.4.10":
+  version: 1.4.10
+  resolution: "@types/cookie-parser@npm:1.4.10"
+  peerDependencies:
+    "@types/express": "*"
+  checksum: 10c0/5e2c0e0fd9cb47eae5bd7cd73768b36b7711594cbd07969a03f015118d57b832291726d9cb7bd350c9e3a1707e5e2f082e7e0635e8ce335474897ab940d55771
+  languageName: node
+  linkType: hard
+
 "@types/cookiejar@npm:^2.1.5":
   version: 2.1.5
   resolution: "@types/cookiejar@npm:2.1.5"
@@ -2276,6 +2285,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cookie-parser@npm:^1.4.7":
+  version: 1.4.7
+  resolution: "cookie-parser@npm:1.4.7"
+  dependencies:
+    cookie: "npm:0.7.2"
+    cookie-signature: "npm:1.0.6"
+  checksum: 10c0/46bef553de409031b69a6074ce512d131a98e4fa12612669f1a9c3dd98d56897a31db86a3f4338d4a3a895c6f8d5cfd6fa4d99cdf588e0e8eda655efc3f384dc
+  languageName: node
+  linkType: hard
+
+"cookie-signature@npm:1.0.6":
+  version: 1.0.6
+  resolution: "cookie-signature@npm:1.0.6"
+  checksum: 10c0/b36fd0d4e3fef8456915fcf7742e58fbfcc12a17a018e0eb9501c9d5ef6893b596466f03b0564b81af29ff2538fd0aa4b9d54fe5ccbfb4c90ea50ad29fe2d221
+  languageName: node
+  linkType: hard
+
 "cookie-signature@npm:~1.0.6":
   version: 1.0.7
   resolution: "cookie-signature@npm:1.0.7"
@@ -2283,7 +2309,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cookie@npm:~0.7.1":
+"cookie@npm:0.7.2, cookie@npm:~0.7.1":
   version: 0.7.2
   resolution: "cookie@npm:0.7.2"
   checksum: 10c0/9596e8ccdbf1a3a88ae02cf5ee80c1c50959423e1022e4e60b91dd87c622af1da309253d8abdb258fb5e3eacb4f08e579dc58b4897b8087574eee0fd35dfa5d2
@@ -4790,6 +4816,7 @@ __metadata:
     "@commitlint/config-conventional": "npm:^20.3.1"
     "@eslint/js": "npm:^9.39.2"
     "@types/better-sqlite3": "npm:^7.6.8"
+    "@types/cookie-parser": "npm:^1.4.10"
     "@types/cors": "npm:^2.8.17"
     "@types/eslint": "npm:^9.6.1"
     "@types/express": "npm:^4.17.21"
@@ -4798,6 +4825,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^1.1.0"
     better-sqlite3: "npm:^9.2.2"
     concurrently: "npm:^9.2.1"
+    cookie-parser: "npm:^1.4.7"
     cors: "npm:^2.8.5"
     dotenv: "npm:^16.3.1"
     eslint: "npm:^9.39.2"
