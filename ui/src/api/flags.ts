@@ -23,6 +23,7 @@ export interface CreateFlagPayload {
   name: string;
   description?: string;
   enabled: boolean;
+  environment?: string;
   targeting?: Flag['targeting'];
   rollout?: Flag['rollout'];
 }
