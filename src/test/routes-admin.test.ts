@@ -246,6 +246,45 @@ describe('Admin Routes', () => {
     });
   });
 
+  describe('GET /admin/ui-token', () => {
+    it('should return 404 when __ui_admin__ key does not exist', async () => {
+      const response = await request(app).get('/admin/ui-token');
+      expect(response.status).toBe(404);
+    });
+
+    it('should return the __ui_admin__ key when it exists', async () => {
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
+      });
+
+      const response = await request(app).get('/admin/ui-token');
+      expect(response.status).toBe(200);
+      expect(response.body.key).toBe('rf_uiadminkey123');
+    });
+  });
+
+  describe('GET /admin/api-keys filters __ui_admin__', () => {
+    it('should not return __ui_admin__ key in the list', async () => {
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
+      });
+      await storage.createApiKey({
+        key: 'rf_normalkey456',
+        name: 'Production Key',
+        environment: 'production'
+      });
+
+      const response = await request(app).get('/admin/api-keys');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].name).toBe('Production Key');
+    });
+  });
+
   describe('Integration scenarios', () => {
     it('should create, list, and delete API keys in sequence', async () => {
       // Create
