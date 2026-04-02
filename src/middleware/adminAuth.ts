@@ -4,9 +4,9 @@ export type SessionStore = Map<string, Date>; // token → expiresAt
 
 export function requireAdminSession(sessions: SessionStore) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const token = (req.cookies as Record<string, string | undefined>)?.rf_session;
+    const token: unknown = (req.cookies as Record<string, unknown>).rf_session;
 
-    if (!token) {
+    if (!token || typeof token !== 'string') {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }

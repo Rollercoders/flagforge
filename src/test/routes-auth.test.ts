@@ -50,4 +50,11 @@ describe('requireAdminSession middleware', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
   });
+
+  it('returns 401 with empty token cookie', async () => {
+    const res = await request(app)
+      .get('/admin/anything')
+      .set('Cookie', 'rf_session=');
+    expect(res.status).toBe(401);
+  });
 });
