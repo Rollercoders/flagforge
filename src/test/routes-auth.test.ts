@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express, { Express } from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { requireAdminSession, SessionStore } from '../middleware/adminAuth.js';
 import { createAuthRouter } from '../routes/auth.js';
+import { SqliteStorage } from '../storage/sqlite.js';
+import { createAdminRouter } from '../routes/admin.js';
+import * as path from 'path';
+import * as fs from 'fs';
 
 describe('requireAdminSession middleware', () => {
   let app: Express;
@@ -159,5 +163,51 @@ describe('Auth routes', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ authenticated: false });
     });
+  });
+});
+
+describe('Admin route protection', () => {
+  let appWithAdmin: Express;
+  let sessions: SessionStore;
+  const TEST_PASSWORD = 'test-password-123';
+  const testDbPath = path.join(__dirname, '../../test-data/routes-auth-admin.db');
+
+  beforeEach(async () => {
+    process.env.ADMIN_PASSWORD = TEST_PASSWORD;
+    sessions = new Map();
+
+    const dir = path.dirname(testDbPath);
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const storage = new SqliteStorage(testDbPath);
+    await storage.initialize();
+
+    appWithAdmin = express();
+    appWithAdmin.use(express.json());
+    appWithAdmin.use(cookieParser());
+    appWithAdmin.use('/auth', createAuthRouter(sessions));
+    appWithAdmin.use('/admin', requireAdminSession(sessions), createAdminRouter(storage));
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+  });
+
+  it('returns 401 on /admin without session', async () => {
+    const res = await request(appWithAdmin).get('/admin/api-keys');
+    expect(res.status).toBe(401);
+  });
+
+  it('allows /admin with valid session cookie', async () => {
+    const loginRes = await request(appWithAdmin)
+      .post('/auth/login')
+      .send({ password: TEST_PASSWORD });
+    const cookie = (loginRes.headers['set-cookie'] as string[])[0];
+
+    const res = await request(appWithAdmin)
+      .get('/admin/api-keys')
+      .set('Cookie', cookie);
+    expect(res.status).toBe(200);
   });
 });

@@ -135,8 +135,8 @@ describe('Admin Routes', () => {
         environment: 'production'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       await storage.createApiKey({
         key: 'key-2',
@@ -144,8 +144,8 @@ describe('Admin Routes', () => {
         environment: 'staging'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       await storage.createApiKey({
         key: 'key-3',
@@ -153,8 +153,8 @@ describe('Admin Routes', () => {
         environment: 'development'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       await storage.createApiKey({
         key: 'rf_uiadminkey123',
