@@ -18,6 +18,11 @@ export function createAuthRouter(sessions: SessionStore) {
 
     const adminPassword = process.env.ADMIN_PASSWORD ?? '';
 
+    if (!adminPassword) {
+      res.status(503).json({ error: 'Admin authentication is not configured' });
+      return;
+    }
+
     // Constant-time comparison to prevent timing attacks
     let passwordsMatch = false;
     try {
@@ -67,7 +72,7 @@ export function createAuthRouter(sessions: SessionStore) {
     const expiresAt = sessions.get(token);
 
     if (!expiresAt || expiresAt <= new Date()) {
-      if (typeof token === 'string') sessions.delete(token);
+      sessions.delete(token);
       res.json({ authenticated: false });
       return;
     }
