@@ -1,3 +1,11 @@
+async function adminFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, init);
+  if (res.status === 401) {
+    window.dispatchEvent(new Event('rf:unauthorized'));
+  }
+  return res;
+}
+
 export interface ApiKey {
   id: string;
   key: string;
@@ -7,13 +15,13 @@ export interface ApiKey {
 }
 
 export async function getApiKeys(): Promise<ApiKey[]> {
-  const res = await fetch('/admin/api-keys');
+  const res = await adminFetch('/admin/api-keys');
   if (!res.ok) throw new Error('Failed to fetch API keys');
   return res.json() as Promise<ApiKey[]>;
 }
 
 export async function createApiKey(name: string, environment: string): Promise<ApiKey> {
-  const res = await fetch('/admin/api-keys', {
+  const res = await adminFetch('/admin/api-keys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, environment }),
@@ -26,6 +34,6 @@ export async function createApiKey(name: string, environment: string): Promise<A
 }
 
 export async function deleteApiKey(id: string): Promise<void> {
-  const res = await fetch(`/admin/api-keys/${id}`, { method: 'DELETE' });
+  const res = await adminFetch(`/admin/api-keys/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete API key');
 }

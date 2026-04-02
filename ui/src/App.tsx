@@ -2,7 +2,10 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { FlagsPage } from './pages/FlagsPage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
+import { LoginPage } from './pages/LoginPage';
+import { Spinner } from './components/Spinner';
 import { getApiKeys } from './api/apiKeys';
+import { checkAuth, logout } from './api/auth';
 
 const globalStyles = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,16 +15,59 @@ const globalStyles = `
 `;
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [environments, setEnvironments] = useState<string[]>([]);
   const [environment, setEnvironment] = useState('');
 
   useEffect(() => {
+    checkAuth().then(ok => setAuthenticated(ok));
+  }, []);
+
+  useEffect(() => {
+    if (!authenticated) return;
     getApiKeys().then(keys => {
       const envs = [...new Set(keys.map(k => k.environment))].sort();
       setEnvironments(envs);
       if (envs.length > 0) setEnvironment(envs[0]);
     }).catch(() => {});
+  }, [authenticated]);
+
+  useEffect(() => {
+    function handleUnauthorized() {
+      setAuthenticated(false);
+    }
+    window.addEventListener('rf:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('rf:unauthorized', handleUnauthorized);
   }, []);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch {
+      // logout failed server-side but clear local state anyway
+    }
+    setAuthenticated(false);
+  }
+
+  if (authenticated === null) {
+    return (
+      <>
+        <style>{globalStyles}</style>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+          <Spinner />
+        </div>
+      </>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <>
+        <style>{globalStyles}</style>
+        <LoginPage onLogin={() => setAuthenticated(true)} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -82,12 +128,7 @@ export default function App() {
           </nav>
 
           {/* Environment selector */}
-          <div
-            style={{
-              padding: '16px',
-              borderTop: '1px solid #334155',
-            }}
-          >
+          <div style={{ padding: '16px', borderTop: '1px solid #334155' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Environment
             </div>
@@ -112,6 +153,26 @@ export default function App() {
                   ))
               }
             </select>
+          </div>
+
+          {/* Logout */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #334155' }}>
+            <button
+              onClick={() => void handleLogout()}
+              style={{
+                width: '100%',
+                padding: '7px 12px',
+                background: 'transparent',
+                border: '1px solid #475569',
+                borderRadius: 6,
+                color: '#94a3b8',
+                fontSize: 13,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              Sign out
+            </button>
           </div>
         </aside>
 
