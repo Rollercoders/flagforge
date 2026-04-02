@@ -135,8 +135,8 @@ describe('JsonStorage', () => {
         environment: 'test'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait 5ms to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       const updated = await storage.updateFlag(flag.id, {
         enabled: true,

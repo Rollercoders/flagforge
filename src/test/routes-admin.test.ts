@@ -135,8 +135,8 @@ describe('Admin Routes', () => {
         environment: 'production'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       await storage.createApiKey({
         key: 'key-2',
@@ -144,13 +144,22 @@ describe('Admin Routes', () => {
         environment: 'staging'
       });
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
 
       await storage.createApiKey({
         key: 'key-3',
         name: 'Key 3',
         environment: 'development'
+      });
+
+      // Wait to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
+
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
       });
     });
 
@@ -159,7 +168,9 @@ describe('Admin Routes', () => {
         .get('/admin/api-keys');
 
       expect(response.status).toBe(200);
+      // 4 keys were created but __ui_admin__ must be filtered out
       expect(response.body).toHaveLength(3);
+      expect(response.body.every((k: { name: string }) => k.name !== '__ui_admin__')).toBe(true);
     });
 
     it('should return keys in descending order by creation date', async () => {
@@ -243,6 +254,45 @@ describe('Admin Routes', () => {
       const keys = await storage.getAllApiKeys();
       expect(keys).toHaveLength(1);
       expect(keys[0].id).toBe(key2.id);
+    });
+  });
+
+  describe('GET /admin/ui-token', () => {
+    it('should return 404 when __ui_admin__ key does not exist', async () => {
+      const response = await request(app).get('/admin/ui-token');
+      expect(response.status).toBe(404);
+    });
+
+    it('should return the __ui_admin__ key when it exists', async () => {
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
+      });
+
+      const response = await request(app).get('/admin/ui-token');
+      expect(response.status).toBe(200);
+      expect(response.body.key).toBe('rf_uiadminkey123');
+    });
+  });
+
+  describe('GET /admin/api-keys filters __ui_admin__', () => {
+    it('should not return __ui_admin__ key in the list', async () => {
+      await storage.createApiKey({
+        key: 'rf_uiadminkey123',
+        name: '__ui_admin__',
+        environment: '__admin__'
+      });
+      await storage.createApiKey({
+        key: 'rf_normalkey456',
+        name: 'Production Key',
+        environment: 'production'
+      });
+
+      const response = await request(app).get('/admin/api-keys');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].name).toBe('Production Key');
     });
   });
 

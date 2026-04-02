@@ -1,7 +1,9 @@
 node_modules/
 dist/
+ui/dist/
 *.db
 *.db-journal
+*.tsbuildinfo
 .env
 .DS_Store
 data/
@@ -10,3 +12,4 @@ coverage/
 .idea/
 .yarn/
 CLAUDE.md
+.superpowers/
