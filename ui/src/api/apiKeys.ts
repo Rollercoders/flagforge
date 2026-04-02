@@ -27,8 +27,14 @@ export async function createApiKey(name: string, environment: string): Promise<A
     body: JSON.stringify({ name, environment }),
   });
   if (!res.ok) {
-    const err = await res.json() as { error: string };
-    throw new Error(err.error ?? 'Failed to create API key');
+    let message = 'Failed to create API key';
+    try {
+      const err = await res.json() as { error: string };
+      message = err.error ?? message;
+    } catch {
+      // non-JSON error body; keep default message
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<ApiKey>;
 }
