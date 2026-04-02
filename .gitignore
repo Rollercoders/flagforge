@@ -3,6 +3,7 @@ dist/
 ui/dist/
 *.db
 *.db-journal
+*.tsbuildinfo
 .env
 .DS_Store
 data/
