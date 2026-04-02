@@ -1,0 +1,5 @@
+yarn lint
+echo "✅ ESLint passed successfully"
+
+yarn test
+echo "✅ Tests passed successfully"

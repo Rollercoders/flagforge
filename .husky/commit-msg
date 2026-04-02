@@ -1,0 +1,2 @@
+yarn commitlint --edit $1
+echo "✅ Commitlint passed successfully"
