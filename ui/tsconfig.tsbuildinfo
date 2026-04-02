@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/api/apikeys.ts","./src/api/client.ts","./src/api/flags.ts","./src/components/badge.tsx","./src/components/drawer.tsx","./src/components/spinner.tsx","./src/components/toast.tsx","./src/components/toggle.tsx","./src/components/index.ts","./src/pages/apikeyspage.tsx","./src/pages/flagspage.tsx"],"version":"5.9.3"}
