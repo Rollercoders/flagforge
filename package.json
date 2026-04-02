@@ -4,6 +4,9 @@
   "description": "Open-source, on-premise feature flagging platform",
   "type": "module",
   "main": "dist/index.js",
+  "workspaces": [
+    "ui"
+  ],
   "scripts": {
     "dev": "concurrently \"tsx watch src/index.ts\" \"yarn ui:dev\"",
     "dev:server": "tsx watch src/index.ts",
