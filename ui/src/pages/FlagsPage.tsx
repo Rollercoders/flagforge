@@ -24,7 +24,6 @@ interface FlagFormState {
   description: string;
   enabled: boolean;
   targetingUserIds: string;
-  targetingUserIdInput: string;
   targetingAttributes: { key: string; values: string }[];
   rolloutPercentage: string;
 }
@@ -36,7 +35,6 @@ function emptyForm(): FlagFormState {
     description: '',
     enabled: false,
     targetingUserIds: '',
-    targetingUserIdInput: '',
     targetingAttributes: [],
     rolloutPercentage: '',
   };
@@ -49,7 +47,6 @@ function flagToForm(flag: Flag): FlagFormState {
     description: flag.description ?? '',
     enabled: flag.enabled,
     targetingUserIds: flag.targeting?.userIds?.join(', ') ?? '',
-    targetingUserIdInput: '',
     targetingAttributes: Object.entries(flag.targeting?.attributes ?? {}).map(([k, v]) => ({
       key: k,
       values: v.join(', '),
@@ -121,8 +118,8 @@ export function FlagsPage({ environment }: FlagsPageProps) {
   const loadFlags = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await getFlags();
-      setFlags(all.filter(f => f.environment === environment));
+      const flags = await getFlags(environment);
+      setFlags(flags);
     } catch {
       showToast('Failed to load flags', 'error');
     } finally {

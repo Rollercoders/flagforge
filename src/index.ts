@@ -75,7 +75,9 @@ async function main() {
 
   // SPA catch-all: serve index.html for any non-API route
   app.get('*', (_req, res) => {
-    res.sendFile(join(uiDistPath, 'index.html'));
+    res.sendFile(join(uiDistPath, 'index.html'), (err) => {
+      if (err) res.status(404).send('Not found');
+    });
   });
 
   app.listen(PORT, () => {

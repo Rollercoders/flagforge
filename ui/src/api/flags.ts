@@ -36,8 +36,9 @@ export interface UpdateFlagPayload {
   rollout?: Flag['rollout'];
 }
 
-export async function getFlags(): Promise<Flag[]> {
-  const res = await apiFetch('/api/flags');
+export async function getFlags(environment?: string): Promise<Flag[]> {
+  const url = environment ? `/api/flags?environment=${encodeURIComponent(environment)}` : '/api/flags';
+  const res = await apiFetch(url);
   if (!res.ok) throw new Error('Failed to fetch flags');
   return res.json() as Promise<Flag[]>;
 }

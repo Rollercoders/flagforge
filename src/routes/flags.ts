@@ -15,7 +15,10 @@ export function createFlagsRouter(storage: Storage) {
         return;
       }
 
-      const environment = req.apiKey!.environment;
+      const isAdmin = req.apiKey!.environment === '__admin__';
+      const environment = isAdmin
+        ? (req.body.environment as string | undefined) ?? '__admin__'
+        : req.apiKey!.environment;
 
       const flag = await storage.createFlag({
         key,
@@ -40,7 +43,10 @@ export function createFlagsRouter(storage: Storage) {
   // Get all flags
   router.get('/', async (req: AuthRequest, res) => {
     try {
-      const environment = req.apiKey!.environment;
+      const isAdmin = req.apiKey!.environment === '__admin__';
+      const environment = isAdmin && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : req.apiKey!.environment;
       const flags = await storage.getAllFlags(environment);
       res.json(flags);
     } catch (_error) {
@@ -52,7 +58,10 @@ export function createFlagsRouter(storage: Storage) {
   router.get('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const environment = req.apiKey!.environment;
+      const isAdmin = req.apiKey!.environment === '__admin__';
+      const environment = isAdmin && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : req.apiKey!.environment;
 
       const flag = await storage.getFlag(key, environment);
 
@@ -71,7 +80,10 @@ export function createFlagsRouter(storage: Storage) {
   router.patch('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const environment = req.apiKey!.environment;
+      const isAdmin = req.apiKey!.environment === '__admin__';
+      const environment = isAdmin && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : req.apiKey!.environment;
 
       const flag = await storage.getFlag(key, environment);
 
@@ -100,7 +112,10 @@ export function createFlagsRouter(storage: Storage) {
   router.delete('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const environment = req.apiKey!.environment;
+      const isAdmin = req.apiKey!.environment === '__admin__';
+      const environment = isAdmin && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : req.apiKey!.environment;
 
       const flag = await storage.getFlag(key, environment);
 
