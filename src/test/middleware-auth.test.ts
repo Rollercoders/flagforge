@@ -19,7 +19,7 @@ describe('Auth Middleware', () => {
       json: vi.fn().mockReturnThis()
     };
 
-    mockNext = vi.fn();
+    mockNext = vi.fn() as unknown as NextFunction;
 
     mockStorage = {
       initialize: vi.fn(),

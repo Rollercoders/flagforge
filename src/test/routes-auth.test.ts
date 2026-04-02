@@ -85,7 +85,7 @@ describe('Auth routes', () => {
         .send({ password: TEST_PASSWORD });
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ ok: true });
-      const cookie = res.headers['set-cookie'] as string[] | undefined;
+      const cookie = res.headers['set-cookie'] as unknown as string[] | undefined;
       expect(cookie).toBeDefined();
       expect(cookie![0]).toContain('rf_session=');
       expect(cookie![0]).toContain('HttpOnly');
@@ -121,7 +121,7 @@ describe('Auth routes', () => {
       const loginRes = await request(app)
         .post('/auth/login')
         .send({ password: TEST_PASSWORD });
-      const cookie = (loginRes.headers['set-cookie'] as string[])[0];
+      const cookie = (loginRes.headers['set-cookie'] as unknown as string[])[0];
 
       // Logout
       const logoutRes = await request(app)
@@ -130,7 +130,7 @@ describe('Auth routes', () => {
       expect(logoutRes.status).toBe(200);
       expect(logoutRes.body).toEqual({ ok: true });
       expect(sessions.size).toBe(0);
-      const clearedCookie = (logoutRes.headers['set-cookie'] as string[])[0];
+      const clearedCookie = (logoutRes.headers['set-cookie'] as unknown as string[])[0];
       expect(clearedCookie).toContain('rf_session=;');
     });
   });
@@ -140,7 +140,7 @@ describe('Auth routes', () => {
       const loginRes = await request(app)
         .post('/auth/login')
         .send({ password: TEST_PASSWORD });
-      const cookie = (loginRes.headers['set-cookie'] as string[])[0];
+      const cookie = (loginRes.headers['set-cookie'] as unknown as string[])[0];
 
       const res = await request(app)
         .get('/auth/me')
@@ -203,7 +203,7 @@ describe('Admin route protection', () => {
     const loginRes = await request(appWithAdmin)
       .post('/auth/login')
       .send({ password: TEST_PASSWORD });
-    const cookie = (loginRes.headers['set-cookie'] as string[])[0];
+    const cookie = (loginRes.headers['set-cookie'] as unknown as string[])[0];
 
     const res = await request(appWithAdmin)
       .get('/admin/api-keys')
