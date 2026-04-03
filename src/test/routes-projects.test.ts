@@ -57,10 +57,22 @@ describe('Projects Routes', () => {
   });
 
   describe('DELETE /admin/projects/:id', () => {
-    it('should delete a project', async () => {
-      const created = await request(app).post('/admin/projects').send({ name: 'doomed' });
-      const res = await request(app).delete(`/admin/projects/${created.body.id}`);
+    it('should delete a project and cascade to environments, flags, and api keys', async () => {
+      const proj = await request(app).post('/admin/projects').send({ name: 'doomed' });
+      const projectId: string = proj.body.id;
+      await request(app).post(`/admin/projects/${projectId}/environments`).send({ name: 'prod' });
+      await storage.createApiKey({ key: 'rf_doomed', name: 'Doomed Key', environment: 'prod', projectId });
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'prod' });
+
+      const res = await request(app).delete(`/admin/projects/${projectId}`);
       expect(res.status).toBe(204);
+
+      const envs = await storage.getEnvironmentsByProject(projectId);
+      expect(envs).toHaveLength(0);
+      const flags = await storage.getAllFlags(projectId);
+      expect(flags).toHaveLength(0);
+      const keys = await storage.getAllApiKeys(projectId);
+      expect(keys).toHaveLength(0);
     });
   });
 
@@ -116,11 +128,23 @@ describe('Projects Routes', () => {
   });
 
   describe('DELETE /admin/projects/:id/environments/:envId', () => {
-    it('should delete an environment', async () => {
+    it('should delete an environment and cascade to its flags and api keys', async () => {
       const proj = await request(app).post('/admin/projects').send({ name: 'my-app' });
-      const env = await request(app).post(`/admin/projects/${proj.body.id}/environments`).send({ name: 'staging' });
-      const res = await request(app).delete(`/admin/projects/${proj.body.id}/environments/${env.body.id}`);
+      const projectId: string = proj.body.id;
+      const env = await request(app).post(`/admin/projects/${projectId}/environments`).send({ name: 'staging' });
+      const envId: string = env.body.id;
+      await storage.createApiKey({ key: 'rf_staging', name: 'Staging Key', environment: 'staging', projectId });
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'staging' });
+
+      const res = await request(app).delete(`/admin/projects/${projectId}/environments/${envId}`);
       expect(res.status).toBe(204);
+
+      const envs = await storage.getEnvironmentsByProject(projectId);
+      expect(envs).toHaveLength(0);
+      const flag = await storage.getFlag(projectId, 'feat', 'staging');
+      expect(flag).toBeNull();
+      const keys = await storage.getAllApiKeys(projectId);
+      expect(keys).toHaveLength(0);
     });
   });
 });
