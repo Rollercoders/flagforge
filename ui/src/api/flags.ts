@@ -2,6 +2,7 @@ import { apiFetch } from './client';
 
 export interface Flag {
   id: string;
+  projectId: string;
   key: string;
   name: string;
   description?: string;
@@ -22,8 +23,6 @@ export interface CreateFlagPayload {
   key: string;
   name: string;
   description?: string;
-  enabled: boolean;
-  environment?: string;
   targeting?: Flag['targeting'];
   rollout?: Flag['rollout'];
 }
