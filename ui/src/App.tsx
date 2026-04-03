@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { FlagsPage } from './pages/FlagsPage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
@@ -16,6 +16,7 @@ const globalStyles = `
 `;
 
 export default function App() {
+  const navigate = useNavigate();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
@@ -38,7 +39,7 @@ export default function App() {
     if (!project) { setEnvironments([]); setEnvironment(''); return; }
     getEnvironments(project.id).then(envs => {
       setEnvironments(envs);
-      setEnvironment(envs.length > 0 ? envs[0].name : '');
+      setEnvironment(prev => envs.find(e => e.name === prev) ? prev : (envs.length > 0 ? envs[0].name : ''));
     }).catch(() => {});
   }, [project]);
 
@@ -51,6 +52,12 @@ export default function App() {
   async function handleLogout() {
     try { await logout(); } catch { /* ignore */ }
     setAuthenticated(false);
+  }
+
+  function selectEnvironment(proj: Project, envName: string) {
+    setProject(proj);
+    setEnvironment(envName);
+    navigate('/flags');
   }
 
   function refreshProjects() {
@@ -102,11 +109,11 @@ export default function App() {
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         <aside style={{ width: 220, background: '#1e293b', color: '#94a3b8', display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0 }}>
           <div style={{ padding: '20px 20px 16px', color: 'white', fontWeight: 700, fontSize: 16, borderBottom: '1px solid #334155' }}>
-            🚩 RollerFlags
+            <img src="/logo.png" alt="RollerFlags" style={{ height: 24, marginRight: 8, verticalAlign: 'middle' }} />RollerFlags
           </div>
 
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #334155' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</div>
             <select value={project?.id ?? ''} onChange={e => setProject(projects.find(p => p.id === e.target.value) ?? null)} style={selectorStyle}>
               {projects.length === 0
                 ? <option value="">No projects yet</option>
@@ -116,7 +123,7 @@ export default function App() {
           </div>
 
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #334155' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Environment</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Environment</div>
             <select value={environment} onChange={e => setEnvironment(e.target.value)} style={selectorStyle}>
               {environments.length === 0
                 ? <option value="">No environments yet</option>
@@ -127,13 +134,13 @@ export default function App() {
 
           <nav style={{ flex: 1, padding: '12px 12px' }}>
             {[
+              { to: '/projects', label: 'Projects' },
               { to: '/flags', label: 'Feature Flags' },
               { to: '/api-keys', label: 'API Keys' },
-              { to: '/projects', label: 'Projects' },
             ].map(({ to, label }) => (
               <NavLink key={to} to={to} style={({ isActive }) => ({
                 display: 'block', padding: '8px 12px', borderRadius: 6, marginBottom: 2,
-                color: isActive ? 'white' : '#94a3b8', background: isActive ? '#334155' : 'transparent',
+                color: isActive ? 'white' : '#cbd5e1', background: isActive ? '#334155' : 'transparent',
                 textDecoration: 'none', fontSize: 14, fontWeight: isActive ? 500 : 400,
               })}>
                 {label}
@@ -142,7 +149,7 @@ export default function App() {
           </nav>
 
           <div style={{ padding: '12px 16px', borderTop: '1px solid #334155' }}>
-            <button onClick={() => void handleLogout()} style={{ width: '100%', padding: '7px 12px', background: 'transparent', border: '1px solid #475569', borderRadius: 6, color: '#94a3b8', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
+            <button onClick={() => void handleLogout()} style={{ width: '100%', padding: '7px 12px', background: 'transparent', border: '1px solid #475569', borderRadius: 6, color: '#cbd5e1', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
               Sign out
             </button>
           </div>
@@ -151,9 +158,9 @@ export default function App() {
         <main style={{ flex: 1, marginLeft: 220, minHeight: '100vh' }}>
           <Routes>
             <Route path="/" element={<Navigate to="/flags" replace />} />
-            <Route path="/flags" element={<FlagsPage projectId={project?.id ?? ''} environment={environment} />} />
+            <Route path="/flags" element={<FlagsPage projectId={project?.id ?? ''} projectName={project?.name ?? ''} environment={environment} />} />
             <Route path="/api-keys" element={<ApiKeysPage projectId={project?.id ?? ''} environments={environments.map(e => e.name)} />} />
-            <Route path="/projects" element={<ProjectsPage onProjectsChange={refreshProjects} />} />
+            <Route path="/projects" element={<ProjectsPage onProjectsChange={refreshProjects} onSelectEnvironment={selectEnvironment} />} />
           </Routes>
         </main>
       </div>

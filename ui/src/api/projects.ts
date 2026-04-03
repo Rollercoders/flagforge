@@ -64,3 +64,16 @@ export async function deleteEnvironment(projectId: string, envId: string): Promi
   const res = await adminFetch(`/admin/projects/${projectId}/environments/${envId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete environment');
 }
+
+export async function renameEnvironment(projectId: string, envId: string, name: string): Promise<Environment> {
+  const res = await adminFetch(`/admin/projects/${projectId}/environments/${envId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { error: string };
+    throw new Error(err.error ?? 'Failed to rename environment');
+  }
+  return res.json() as Promise<Environment>;
+}

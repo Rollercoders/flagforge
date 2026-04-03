@@ -15,6 +15,7 @@ import { useToast } from '../components/Toast';
 
 interface FlagsPageProps {
   projectId: string;
+  projectName: string;
   environment: string;
 }
 
@@ -104,7 +105,7 @@ const fieldStyle: React.CSSProperties = {
   marginBottom: 16,
 };
 
-export function FlagsPage({ projectId, environment }: FlagsPageProps) {
+export function FlagsPage({ projectId, projectName, environment }: FlagsPageProps) {
   const { showToast } = useToast();
   const [flags, setFlags] = useState<Flag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,24 +213,26 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, color: '#111827' }}>Feature Flags</h1>
-          <p style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{environment}</p>
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: '#111827' }}>{projectName ? `${projectName} — Feature Flags` : 'Feature Flags'}</h1>
+          <p style={{ fontSize: 13, color: '#374151', marginTop: 2 }}>{environment}</p>
         </div>
-        <button
-          onClick={openCreate}
-          style={{
-            padding: '8px 16px',
-            background: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          + New Flag
-        </button>
+        {!loading && flags.length > 0 && (
+          <button
+            onClick={openCreate}
+            style={{
+              padding: '8px 16px',
+              background: '#1d4ed8',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            + New Flag
+          </button>
+        )}
       </div>
 
       {/* List */}
@@ -242,17 +245,18 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
           style={{
             textAlign: 'center',
             padding: 64,
-            color: '#9ca3af',
+            color: '#4b5563',
             border: '2px dashed #e5e7eb',
             borderRadius: 12,
           }}
         >
-          <p style={{ fontSize: 15, marginBottom: 12 }}>No flags yet in {environment}</p>
+          <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 8 }}>No feature flags yet in {environment}</p>
+          <p style={{ fontSize: 14, color: '#4b5563', marginBottom: 24 }}>Feature flags let you control your app behavior without deploying code.</p>
           <button
             onClick={openCreate}
             style={{
               padding: '8px 16px',
-              background: '#3b82f6',
+              background: '#1d4ed8',
               color: 'white',
               border: 'none',
               borderRadius: 6,
@@ -262,6 +266,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
           >
             Create your first flag
           </button>
+          <p style={{ fontSize: 12, color: '#4b5563', marginTop: 12 }}>Example: new-checkout, beta-dashboard, enable-chat</p>
         </div>
       ) : (
         <div
@@ -293,7 +298,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
                   {flag.targeting && <Badge color="blue">Targeting</Badge>}
                   {flag.rollout && <Badge color="purple">Rollout {flag.rollout.percentage}%</Badge>}
                 </div>
-                <span style={{ fontSize: 13, color: '#6b7280' }}>{flag.name}</span>
+                <span style={{ fontSize: 13, color: '#374151' }}>{flag.name}</span>
               </div>
               <div onClick={e => e.stopPropagation()}>
                 <Toggle
@@ -366,7 +371,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
             onChange={e => setForm(f => ({ ...f, targetingUserIds: e.target.value }))}
             placeholder="user-1, user-2, user-3"
           />
-          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Comma-separated user IDs</p>
+          <p style={{ fontSize: 11, color: '#4b5563', marginTop: 4 }}>Comma-separated user IDs</p>
         </div>
 
         {/* targeting attributes */}
@@ -376,7 +381,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
             <button
               type="button"
               onClick={() => setForm(f => ({ ...f, targetingAttributes: [...f.targetingAttributes, { key: '', values: '' }] }))}
-              style={{ fontSize: 12, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 12, color: '#1d4ed8', background: 'none', border: 'none', cursor: 'pointer' }}
             >
               + Add
             </button>
@@ -426,7 +431,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
             onChange={e => setForm(f => ({ ...f, rolloutPercentage: e.target.value }))}
             placeholder="e.g. 50"
           />
-          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Leave empty to disable rollout</p>
+          <p style={{ fontSize: 11, color: '#4b5563', marginTop: 4 }}>Leave empty to disable rollout</p>
         </div>
 
         {/* actions */}
@@ -437,7 +442,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
             style={{
               flex: 1,
               padding: '10px',
-              background: saving || !form.key || !form.name ? '#93c5fd' : '#3b82f6',
+              background: saving || !form.key || !form.name ? '#9ca3af' : '#1d4ed8',
               color: 'white',
               border: 'none',
               borderRadius: 6,
