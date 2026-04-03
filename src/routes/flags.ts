@@ -20,7 +20,9 @@ export function createFlagsRouter(storage: Storage) {
         ? (req.body.environment as string | undefined) ?? '__admin__'
         : req.apiKey!.environment;
 
-      const flag = await storage.createFlag({
+      const projectId = req.apiKey!.projectId ?? '';
+      const flags = await storage.createFlag({
+        projectId,
         key,
         name,
         description,
@@ -30,6 +32,7 @@ export function createFlagsRouter(storage: Storage) {
         rollout
       });
 
+      const flag = flags.find(f => f.environment === environment) ?? flags[0];
       res.status(201).json(flag);
     } catch (_error: any) {
       if (_error.message?.includes('UNIQUE constraint')) {
@@ -47,7 +50,8 @@ export function createFlagsRouter(storage: Storage) {
       const environment = isAdmin && typeof req.query['environment'] === 'string'
         ? req.query['environment']
         : req.apiKey!.environment;
-      const flags = await storage.getAllFlags(environment);
+      const projectId = req.apiKey!.projectId ?? '';
+      const flags = await storage.getAllFlags(projectId, environment);
       res.json(flags);
     } catch (_error) {
       res.status(500).json({ error: 'Failed to fetch flags' });
@@ -63,7 +67,8 @@ export function createFlagsRouter(storage: Storage) {
         ? req.query['environment']
         : req.apiKey!.environment;
 
-      const flag = await storage.getFlag(key, environment);
+      const projectId = req.apiKey!.projectId ?? '';
+      const flag = await storage.getFlag(projectId, key, environment);
 
       if (!flag) {
         res.status(404).json({ error: 'Flag not found' });
@@ -85,7 +90,8 @@ export function createFlagsRouter(storage: Storage) {
         ? req.query['environment']
         : req.apiKey!.environment;
 
-      const flag = await storage.getFlag(key, environment);
+      const projectId = req.apiKey!.projectId ?? '';
+      const flag = await storage.getFlag(projectId, key, environment);
 
       if (!flag) {
         res.status(404).json({ error: 'Flag not found' });
@@ -117,14 +123,15 @@ export function createFlagsRouter(storage: Storage) {
         ? req.query['environment']
         : req.apiKey!.environment;
 
-      const flag = await storage.getFlag(key, environment);
+      const projectId = req.apiKey!.projectId ?? '';
+      const flag = await storage.getFlag(projectId, key, environment);
 
       if (!flag) {
         res.status(404).json({ error: 'Flag not found' });
         return;
       }
 
-      await storage.deleteFlag(flag.id);
+      await storage.deleteFlag(projectId, key);
       res.status(204).send();
     } catch (_error) {
       res.status(500).json({ error: 'Failed to delete flag' });
