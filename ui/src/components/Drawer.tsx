@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface DrawerProps {
   open: boolean;
@@ -8,6 +8,20 @@ interface DrawerProps {
 }
 
 export function Drawer({ open, onClose, title, children }: DrawerProps) {
+  const [visible, setVisible] = useState(false);
+  const [rendered, setRendered] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    } else {
+      setVisible(false);
+      const t = setTimeout(() => setRendered(false), 300);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -16,7 +30,7 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!rendered) return null;
 
   return (
     <>
@@ -28,6 +42,8 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
           inset: 0,
           background: 'rgba(0,0,0,0.3)',
           zIndex: 40,
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 300ms ease',
         }}
       />
       {/* panel */}
@@ -43,6 +59,8 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
+          transform: visible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 300ms ease',
         }}
       >
         {/* header */}
@@ -65,7 +83,7 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
               border: 'none',
               cursor: 'pointer',
               fontSize: 20,
-              color: '#6b7280',
+              color: '#374151',
               lineHeight: 1,
               padding: 4,
             }}

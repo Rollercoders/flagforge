@@ -49,7 +49,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             style={{
               padding: '10px 16px',
               borderRadius: 8,
-              background: toast.type === 'success' ? '#059669' : '#dc2626',
+              background: toast.type === 'success' ? '#065f46' : '#991b1b',
               color: 'white',
               fontSize: 14,
               fontWeight: 500,

@@ -42,7 +42,8 @@ describe('Admin Routes', () => {
         .post('/admin/api-keys')
         .send({
           name: 'Production Key',
-          environment: 'production'
+          environment: 'production',
+          projectId: 'test-project'
         });
 
       expect(response.status).toBe(201);
@@ -59,14 +60,16 @@ describe('Admin Routes', () => {
         .post('/admin/api-keys')
         .send({
           name: 'Key 1',
-          environment: 'test'
+          environment: 'test',
+          projectId: 'test-project'
         });
 
       const response2 = await request(app)
         .post('/admin/api-keys')
         .send({
           name: 'Key 2',
-          environment: 'test'
+          environment: 'test',
+          projectId: 'test-project'
         });
 
       expect(response1.body.key).not.toBe(response2.body.key);
@@ -76,22 +79,33 @@ describe('Admin Routes', () => {
       const response = await request(app)
         .post('/admin/api-keys')
         .send({
-          environment: 'production'
+          environment: 'production',
+          projectId: 'test-project'
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('name and environment are required');
+      expect(response.body.error).toBe('name, environment, and projectId are required');
     });
 
     it('should reject request without environment', async () => {
       const response = await request(app)
         .post('/admin/api-keys')
         .send({
-          name: 'Test Key'
+          name: 'Test Key',
+          projectId: 'test-project'
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('name and environment are required');
+      expect(response.body.error).toBe('name, environment, and projectId are required');
+    });
+
+    it('should reject reserved projectId __admin__', async () => {
+      const response = await request(app)
+        .post('/admin/api-keys')
+        .send({ name: 'Test Key', environment: 'prod', projectId: '__admin__' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Reserved projectId');
     });
 
     it('should create keys for different environments', async () => {
@@ -99,14 +113,16 @@ describe('Admin Routes', () => {
         .post('/admin/api-keys')
         .send({
           name: 'Prod Key',
-          environment: 'production'
+          environment: 'production',
+          projectId: 'test-project'
         });
 
       const stagingResponse = await request(app)
         .post('/admin/api-keys')
         .send({
           name: 'Staging Key',
-          environment: 'staging'
+          environment: 'staging',
+          projectId: 'test-project'
         });
 
       expect(prodResponse.status).toBe(201);
@@ -120,7 +136,8 @@ describe('Admin Routes', () => {
         .post('/admin/api-keys')
         .send({
           name: 'Test Key',
-          environment: 'test'
+          environment: 'test',
+          projectId: 'test-project'
         });
 
       expect(response.body.key).toMatch(/^rf_[a-zA-Z0-9_-]{32}$/);
@@ -132,7 +149,8 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'key-1',
         name: 'Key 1',
-        environment: 'production'
+        environment: 'production',
+        projectId: 'test-project'
       });
 
       // Wait to ensure different timestamp
@@ -141,7 +159,8 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'key-2',
         name: 'Key 2',
-        environment: 'staging'
+        environment: 'staging',
+        projectId: 'test-project'
       });
 
       // Wait to ensure different timestamp
@@ -150,7 +169,8 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'key-3',
         name: 'Key 3',
-        environment: 'development'
+        environment: 'development',
+        projectId: 'test-project'
       });
 
       // Wait to ensure different timestamp
@@ -159,7 +179,8 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'rf_uiadminkey123',
         name: '__ui_admin__',
-        environment: '__admin__'
+        environment: '__admin__',
+        projectId: 'test-project'
       });
     });
 
@@ -218,7 +239,8 @@ describe('Admin Routes', () => {
       const key = await storage.createApiKey({
         key: 'delete-test-key',
         name: 'Delete Test',
-        environment: 'test'
+        environment: 'test',
+        projectId: 'test-project'
       });
       testKeyId = key.id;
     });
@@ -245,7 +267,8 @@ describe('Admin Routes', () => {
       const key2 = await storage.createApiKey({
         key: 'keep-this-key',
         name: 'Keep This',
-        environment: 'test'
+        environment: 'test',
+        projectId: 'test-project'
       });
 
       await request(app)
@@ -267,7 +290,8 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'rf_uiadminkey123',
         name: '__ui_admin__',
-        environment: '__admin__'
+        environment: '__admin__',
+        projectId: 'test-project'
       });
 
       const response = await request(app).get('/admin/ui-token');
@@ -281,18 +305,44 @@ describe('Admin Routes', () => {
       await storage.createApiKey({
         key: 'rf_uiadminkey123',
         name: '__ui_admin__',
-        environment: '__admin__'
+        environment: '__admin__',
+        projectId: 'test-project'
       });
       await storage.createApiKey({
         key: 'rf_normalkey456',
         name: 'Production Key',
-        environment: 'production'
+        environment: 'production',
+        projectId: 'test-project'
       });
 
       const response = await request(app).get('/admin/api-keys');
       expect(response.status).toBe(200);
       expect(response.body).toHaveLength(1);
       expect(response.body[0].name).toBe('Production Key');
+    });
+  });
+
+  describe('GET /admin/api-keys?projectId= filters by projectId', () => {
+    it('should return only keys matching the given projectId', async () => {
+      await storage.createApiKey({
+        key: 'rf_projectakey111',
+        name: 'Project A Key',
+        environment: 'production',
+        projectId: 'project-a',
+      });
+      await storage.createApiKey({
+        key: 'rf_projectbkey222',
+        name: 'Project B Key',
+        environment: 'production',
+        projectId: 'project-b',
+      });
+
+      const response = await request(app).get('/admin/api-keys?projectId=project-a');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].name).toBe('Project A Key');
+      expect(response.body.every((k: { projectId: string }) => k.projectId === 'project-a')).toBe(true);
     });
   });
 
@@ -303,7 +353,8 @@ describe('Admin Routes', () => {
         .post('/admin/api-keys')
         .send({
           name: 'Test Key',
-          environment: 'test'
+          environment: 'test',
+          projectId: 'test-project'
         });
 
       expect(createResponse.status).toBe(201);
@@ -338,7 +389,8 @@ describe('Admin Routes', () => {
           .post('/admin/api-keys')
           .send({
             name: `${env} Key`,
-            environment: env
+            environment: env,
+            projectId: 'test-project'
           });
 
         expect(response.status).toBe(201);

@@ -7,6 +7,7 @@ describe('FlagEvaluator', () => {
 
   const createFlag = (overrides: Partial<Flag> = {}): Flag => ({
     id: 'test-id',
+    projectId: '__test__',
     key: 'test-flag',
     name: 'Test Flag',
     enabled: true,

@@ -1,130 +1,113 @@
 import { Router } from 'express';
-import { Storage } from '../types';
+import { Storage, Flag } from '../types';
 import { AuthRequest } from '../middleware/auth';
 
 export function createFlagsRouter(storage: Storage) {
   const router = Router();
 
-  // Create a new flag
   router.post('/', async (req: AuthRequest, res) => {
     try {
-      const { key, name, description, enabled, targeting, rollout } = req.body;
-
+      const { key, name, description, targeting, rollout } = req.body;
       if (!key || !name) {
         res.status(400).json({ error: 'key and name are required' });
         return;
       }
-
-      const isAdmin = req.apiKey!.environment === '__admin__';
-      const environment = isAdmin
-        ? (req.body.environment as string | undefined) ?? '__admin__'
-        : req.apiKey!.environment;
-
-      const flag = await storage.createFlag({
-        key,
-        name,
-        description,
-        enabled: enabled ?? false,
-        environment,
-        targeting,
-        rollout
-      });
-
-      res.status(201).json(flag);
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.body['projectId'] === 'string'
+        ? req.body['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.body['environment'] === 'string'
+        ? req.body['environment']
+        : tokenEnvironment;
+      const flags = await storage.createFlag({ projectId, key, name, description, enabled: false, environment, targeting, rollout });
+      const flagForEnv = flags.find(f => f.environment === environment);
+      if (!flagForEnv) {
+        res.status(500).json({ error: 'Internal error: flag not created for expected environment' });
+        return;
+      }
+      res.status(201).json(flagForEnv);
     } catch (_error: any) {
-      if (_error.message?.includes('UNIQUE constraint')) {
-        res.status(409).json({ error: 'Flag with this key already exists in this environment' });
+      if (_error.message?.includes('UNIQUE constraint') || _error.message?.includes('already exists')) {
+        res.status(409).json({ error: 'Flag with this key already exists in this project' });
       } else {
         res.status(500).json({ error: 'Failed to create flag' });
       }
     }
   });
 
-  // Get all flags
   router.get('/', async (req: AuthRequest, res) => {
     try {
-      const isAdmin = req.apiKey!.environment === '__admin__';
-      const environment = isAdmin && typeof req.query['environment'] === 'string'
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      // Admin UI token allows scoping by query params; regular API keys use their own projectId/environment
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
         ? req.query['environment']
-        : req.apiKey!.environment;
-      const flags = await storage.getAllFlags(environment);
+        : tokenEnvironment;
+      const flags = await storage.getAllFlags(projectId, environment);
       res.json(flags);
     } catch (_error) {
       res.status(500).json({ error: 'Failed to fetch flags' });
     }
   });
 
-  // Get a specific flag
   router.get('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const isAdmin = req.apiKey!.environment === '__admin__';
-      const environment = isAdmin && typeof req.query['environment'] === 'string'
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
         ? req.query['environment']
-        : req.apiKey!.environment;
-
-      const flag = await storage.getFlag(key, environment);
-
-      if (!flag) {
-        res.status(404).json({ error: 'Flag not found' });
-        return;
-      }
-
+        : tokenEnvironment;
+      const flag = await storage.getFlag(projectId, key, environment);
+      if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
       res.json(flag);
     } catch (_error) {
       res.status(500).json({ error: 'Failed to fetch flag' });
     }
   });
 
-  // Update a flag
   router.patch('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const isAdmin = req.apiKey!.environment === '__admin__';
-      const environment = isAdmin && typeof req.query['environment'] === 'string'
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
         ? req.query['environment']
-        : req.apiKey!.environment;
-
-      const flag = await storage.getFlag(key, environment);
-
-      if (!flag) {
-        res.status(404).json({ error: 'Flag not found' });
-        return;
-      }
-
-      const { name, description, enabled, targeting, rollout } = req.body;
-
-      const updated = await storage.updateFlag(flag.id, {
-        name,
-        description,
-        enabled,
-        targeting,
-        rollout
-      });
-
+        : tokenEnvironment;
+      const flag = await storage.getFlag(projectId, key, environment);
+      if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
+      const updates: Partial<Pick<Flag, 'name' | 'description' | 'enabled' | 'targeting' | 'rollout'>> = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.description !== undefined) updates.description = req.body.description;
+      if (req.body.enabled !== undefined) updates.enabled = req.body.enabled;
+      if (req.body.targeting !== undefined) updates.targeting = req.body.targeting;
+      if (req.body.rollout !== undefined) updates.rollout = req.body.rollout;
+      const updated = await storage.updateFlag(flag.id, updates);
       res.json(updated);
     } catch (_error) {
       res.status(500).json({ error: 'Failed to update flag' });
     }
   });
 
-  // Delete a flag
   router.delete('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const isAdmin = req.apiKey!.environment === '__admin__';
-      const environment = isAdmin && typeof req.query['environment'] === 'string'
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
         ? req.query['environment']
-        : req.apiKey!.environment;
-
-      const flag = await storage.getFlag(key, environment);
-
-      if (!flag) {
-        res.status(404).json({ error: 'Flag not found' });
-        return;
-      }
-
-      await storage.deleteFlag(flag.id);
+        : tokenEnvironment;
+      const flag = await storage.getFlag(projectId, key, environment);
+      if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
+      await storage.deleteFlag(projectId, key);
       res.status(204).send();
     } catch (_error) {
       res.status(500).json({ error: 'Failed to delete flag' });

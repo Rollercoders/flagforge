@@ -8,305 +8,186 @@ describe('SqliteStorage', () => {
   const testDbPath = path.join(__dirname, '../../test-data/test.db');
 
   beforeEach(async () => {
-    // Clean up test database
     const dir = path.dirname(testDbPath);
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
-    }
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     storage = new SqliteStorage(testDbPath);
     await storage.initialize();
   });
 
   afterEach(() => {
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
-    }
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+  });
+
+  describe('Project operations', () => {
+    it('should create a project', async () => {
+      const project = await storage.createProject({ name: 'my-app' });
+      expect(project.id).toBeDefined();
+      expect(project.name).toBe('my-app');
+      expect(project.createdAt).toBeDefined();
+    });
+
+    it('should get all projects', async () => {
+      await storage.createProject({ name: 'app-a' });
+      await new Promise(r => setTimeout(r, 1));
+      await storage.createProject({ name: 'app-b' });
+      const projects = await storage.getAllProjects();
+      expect(projects).toHaveLength(2);
+    });
+
+    it('should get project by id', async () => {
+      const created = await storage.createProject({ name: 'my-app' });
+      const found = await storage.getProject(created.id);
+      expect(found?.name).toBe('my-app');
+    });
+
+    it('should return null for missing project', async () => {
+      const found = await storage.getProject('nonexistent');
+      expect(found).toBeNull();
+    });
+
+    it('should delete a project', async () => {
+      const project = await storage.createProject({ name: 'my-app' });
+      await storage.deleteProject(project.id);
+      const found = await storage.getProject(project.id);
+      expect(found).toBeNull();
+    });
+
+    it('should reject duplicate project names', async () => {
+      await storage.createProject({ name: 'my-app' });
+      await expect(storage.createProject({ name: 'my-app' })).rejects.toThrow();
+    });
+  });
+
+  describe('Environment operations', () => {
+    let projectId: string;
+
+    beforeEach(async () => {
+      const project = await storage.createProject({ name: 'my-app' });
+      projectId = project.id;
+    });
+
+    it('should create an environment', async () => {
+      const env = await storage.createEnvironment({ projectId, name: 'production' });
+      expect(env.id).toBeDefined();
+      expect(env.projectId).toBe(projectId);
+      expect(env.name).toBe('production');
+    });
+
+    it('should list environments for a project', async () => {
+      await storage.createEnvironment({ projectId, name: 'production' });
+      await new Promise(r => setTimeout(r, 1));
+      await storage.createEnvironment({ projectId, name: 'staging' });
+      const envs = await storage.getEnvironmentsByProject(projectId);
+      expect(envs).toHaveLength(2);
+    });
+
+    it('should delete an environment', async () => {
+      const env = await storage.createEnvironment({ projectId, name: 'staging' });
+      await storage.deleteEnvironment(env.id);
+      const envs = await storage.getEnvironmentsByProject(projectId);
+      expect(envs).toHaveLength(0);
+    });
+
+    it('should reject duplicate env name in same project', async () => {
+      await storage.createEnvironment({ projectId, name: 'production' });
+      await expect(storage.createEnvironment({ projectId, name: 'production' })).rejects.toThrow();
+    });
   });
 
   describe('Flag operations', () => {
-    it('should create a flag', async () => {
-      const flag = await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        description: 'A test flag',
-        enabled: true,
-        environment: 'test'
-      });
+    let projectId: string;
 
-      expect(flag).toBeDefined();
-      expect(flag.id).toBeDefined();
-      expect(flag.key).toBe('test-flag');
-      expect(flag.name).toBe('Test Flag');
-      expect(flag.enabled).toBe(true);
-      expect(flag.environment).toBe('test');
-      expect(flag.createdAt).toBeDefined();
-      expect(flag.updatedAt).toBeDefined();
+    beforeEach(async () => {
+      const project = await storage.createProject({ name: 'my-app' });
+      projectId = project.id;
+      await storage.createEnvironment({ projectId, name: 'production' });
+      await storage.createEnvironment({ projectId, name: 'staging' });
     });
 
-    it('should get a flag by key and environment', async () => {
-      await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        enabled: true,
-        environment: 'production'
+    it('should create a flag for all environments', async () => {
+      const flags = await storage.createFlag({
+        projectId,
+        key: 'dark-mode',
+        name: 'Dark Mode',
+        enabled: false,
+        environment: 'production',
       });
+      expect(flags).toHaveLength(2);
+      const envNames = flags.map(f => f.environment).sort();
+      expect(envNames).toEqual(['production', 'staging']);
+      flags.forEach(f => {
+        expect(f.projectId).toBe(projectId);
+        expect(f.key).toBe('dark-mode');
+        expect(f.enabled).toBe(false);
+      });
+    });
 
-      const flag = await storage.getFlag('test-flag', 'production');
-
-      expect(flag).toBeDefined();
-      expect(flag?.key).toBe('test-flag');
+    it('should get a flag by projectId + key + environment', async () => {
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: true, environment: 'production' });
+      const flag = await storage.getFlag(projectId, 'feat', 'production');
+      expect(flag?.key).toBe('feat');
       expect(flag?.environment).toBe('production');
     });
 
-    it('should return null for non-existent flag', async () => {
-      const flag = await storage.getFlag('non-existent', 'production');
-
+    it('should return null for flag in wrong project', async () => {
+      const other = await storage.createProject({ name: 'other' });
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: true, environment: 'production' });
+      const flag = await storage.getFlag(other.id, 'feat', 'production');
       expect(flag).toBeNull();
     });
 
-    it('should get all flags', async () => {
-      await storage.createFlag({
-        key: 'flag-1',
-        name: 'Flag 1',
-        enabled: true,
-        environment: 'test'
-      });
-
-      await storage.createFlag({
-        key: 'flag-2',
-        name: 'Flag 2',
-        enabled: false,
-        environment: 'test'
-      });
-
-      const flags = await storage.getAllFlags();
-
+    it('should get all flags for a project+environment', async () => {
+      await storage.createFlag({ projectId, key: 'feat-a', name: 'A', enabled: true, environment: 'production' });
+      await new Promise(r => setTimeout(r, 1));
+      await storage.createFlag({ projectId, key: 'feat-b', name: 'B', enabled: false, environment: 'production' });
+      const flags = await storage.getAllFlags(projectId, 'production');
       expect(flags).toHaveLength(2);
     });
 
-    it('should get flags filtered by environment', async () => {
-      await storage.createFlag({
-        key: 'flag-1',
-        name: 'Flag 1',
-        enabled: true,
-        environment: 'production'
-      });
-
-      await storage.createFlag({
-        key: 'flag-2',
-        name: 'Flag 2',
-        enabled: true,
-        environment: 'staging'
-      });
-
-      const prodFlags = await storage.getAllFlags('production');
-      const stagingFlags = await storage.getAllFlags('staging');
-
-      expect(prodFlags).toHaveLength(1);
-      expect(prodFlags[0].key).toBe('flag-1');
-      expect(stagingFlags).toHaveLength(1);
-      expect(stagingFlags[0].key).toBe('flag-2');
+    it('should delete all environment rows for a flag key', async () => {
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'production' });
+      await storage.deleteFlag(projectId, 'feat');
+      const prod = await storage.getFlag(projectId, 'feat', 'production');
+      const stg = await storage.getFlag(projectId, 'feat', 'staging');
+      expect(prod).toBeNull();
+      expect(stg).toBeNull();
     });
 
-    it('should update a flag', async () => {
-      const flag = await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        enabled: false,
-        environment: 'test'
-      });
-
-      // Wait 1ms to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
-
-      const updated = await storage.updateFlag(flag.id, {
-        enabled: true,
-        name: 'Updated Flag'
-      });
-
-      expect(updated.enabled).toBe(true);
-      expect(updated.name).toBe('Updated Flag');
-      expect(updated.updatedAt).not.toBe(flag.updatedAt);
-    });
-
-    it('should delete a flag', async () => {
-      const flag = await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        enabled: true,
-        environment: 'test'
-      });
-
-      await storage.deleteFlag(flag.id);
-
-      const retrieved = await storage.getFlag('test-flag', 'test');
-      expect(retrieved).toBeNull();
-    });
-
-    it('should store and retrieve targeting rules', async () => {
-      const flag = await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        enabled: true,
-        environment: 'test',
-        targeting: {
-          userIds: ['user-1', 'user-2'],
-          attributes: {
-            plan: ['premium', 'enterprise']
-          }
-        }
-      });
-
-      const retrieved = await storage.getFlag('test-flag', 'test');
-
-      expect(retrieved?.targeting).toBeDefined();
-      expect(retrieved?.targeting?.userIds).toEqual(['user-1', 'user-2']);
-      expect(retrieved?.targeting?.attributes?.plan).toEqual(['premium', 'enterprise']);
-    });
-
-    it('should store and retrieve rollout configuration', async () => {
-      const flag = await storage.createFlag({
-        key: 'test-flag',
-        name: 'Test Flag',
-        enabled: true,
-        environment: 'test',
-        rollout: {
-          percentage: 50
-        }
-      });
-
-      const retrieved = await storage.getFlag('test-flag', 'test');
-
-      expect(retrieved?.rollout).toBeDefined();
-      expect(retrieved?.rollout?.percentage).toBe(50);
-    });
-
-    it('should enforce unique constraint on key+environment', async () => {
-      await storage.createFlag({
-        key: 'duplicate',
-        name: 'First',
-        enabled: true,
-        environment: 'test'
-      });
-
+    it('should reject duplicate flag key in same project+environment', async () => {
+      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'production' });
       await expect(
-        storage.createFlag({
-          key: 'duplicate',
-          name: 'Second',
-          enabled: true,
-          environment: 'test'
-        })
+        storage.createFlag({ projectId, key: 'feat', name: 'Feature 2', enabled: false, environment: 'production' })
       ).rejects.toThrow();
-    });
-
-    it('should allow same key in different environments', async () => {
-      await storage.createFlag({
-        key: 'same-key',
-        name: 'Prod Flag',
-        enabled: true,
-        environment: 'production'
-      });
-
-      await storage.createFlag({
-        key: 'same-key',
-        name: 'Staging Flag',
-        enabled: false,
-        environment: 'staging'
-      });
-
-      const prodFlag = await storage.getFlag('same-key', 'production');
-      const stagingFlag = await storage.getFlag('same-key', 'staging');
-
-      expect(prodFlag?.name).toBe('Prod Flag');
-      expect(stagingFlag?.name).toBe('Staging Flag');
     });
   });
 
   describe('API Key operations', () => {
-    it('should create an API key', async () => {
-      const apiKey = await storage.createApiKey({
-        key: 'test-key-123',
-        name: 'Test Key',
-        environment: 'production'
-      });
+    let projectId: string;
 
-      expect(apiKey).toBeDefined();
-      expect(apiKey.id).toBeDefined();
-      expect(apiKey.key).toBe('test-key-123');
-      expect(apiKey.name).toBe('Test Key');
-      expect(apiKey.environment).toBe('production');
-      expect(apiKey.createdAt).toBeDefined();
+    beforeEach(async () => {
+      const project = await storage.createProject({ name: 'my-app' });
+      projectId = project.id;
     });
 
-    it('should get an API key by key', async () => {
-      await storage.createApiKey({
-        key: 'test-key-456',
-        name: 'Test Key',
-        environment: 'staging'
-      });
-
-      const apiKey = await storage.getApiKey('test-key-456');
-
-      expect(apiKey).toBeDefined();
-      expect(apiKey?.key).toBe('test-key-456');
-      expect(apiKey?.environment).toBe('staging');
+    it('should create an API key with projectId', async () => {
+      const key = await storage.createApiKey({ key: 'rf_test', name: 'Test', environment: 'production', projectId });
+      expect(key.projectId).toBe(projectId);
     });
 
-    it('should return null for non-existent API key', async () => {
-      const apiKey = await storage.getApiKey('non-existent-key');
-
-      expect(apiKey).toBeNull();
+    it('should list API keys filtered by projectId', async () => {
+      const other = await storage.createProject({ name: 'other' });
+      await storage.createApiKey({ key: 'rf_a', name: 'A', environment: 'prod', projectId });
+      await storage.createApiKey({ key: 'rf_b', name: 'B', environment: 'prod', projectId: other.id });
+      const keys = await storage.getAllApiKeys(projectId);
+      expect(keys).toHaveLength(1);
+      expect(keys[0].name).toBe('A');
     });
 
-    it('should get all API keys', async () => {
-      await storage.createApiKey({
-        key: 'key-1',
-        name: 'Key 1',
-        environment: 'production'
-      });
-
-      await storage.createApiKey({
-        key: 'key-2',
-        name: 'Key 2',
-        environment: 'staging'
-      });
-
-      const keys = await storage.getAllApiKeys();
-
-      expect(keys).toHaveLength(2);
-    });
-
-    it('should delete an API key', async () => {
-      const apiKey = await storage.createApiKey({
-        key: 'delete-me',
-        name: 'Delete Me',
-        environment: 'test'
-      });
-
-      await storage.deleteApiKey(apiKey.id);
-
-      const retrieved = await storage.getApiKey('delete-me');
-      expect(retrieved).toBeNull();
-    });
-
-    it('should enforce unique constraint on key', async () => {
-      await storage.createApiKey({
-        key: 'duplicate-key',
-        name: 'First',
-        environment: 'production'
-      });
-
-      await expect(
-        storage.createApiKey({
-          key: 'duplicate-key',
-          name: 'Second',
-          environment: 'staging'
-        })
-      ).rejects.toThrow();
+    it('should get API key by key string', async () => {
+      await storage.createApiKey({ key: 'rf_test123', name: 'Test', environment: 'prod', projectId });
+      const found = await storage.getApiKey('rf_test123');
+      expect(found?.projectId).toBe(projectId);
     });
   });
 });

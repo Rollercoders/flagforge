@@ -4,9 +4,9 @@ interface BadgeProps {
 }
 
 const colors = {
-  blue: { background: '#dbeafe', color: '#1d4ed8' },
-  purple: { background: '#ede9fe', color: '#7c3aed' },
-  gray: { background: '#f3f4f6', color: '#6b7280' },
+  blue: { background: '#dbeafe', color: '#1e3a8a' },
+  purple: { background: '#ede9fe', color: '#4c1d95' },
+  gray: { background: '#f3f4f6', color: '#374151' },
 };
 
 export function Badge({ children, color = 'gray' }: BadgeProps) {

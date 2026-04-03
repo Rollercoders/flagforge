@@ -17,7 +17,8 @@ export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator)
         return;
       }
 
-      const flag = await storage.getFlag(key, environment);
+      const projectId = req.apiKey?.projectId ?? '';
+      const flag = await storage.getFlag(projectId, key, environment);
 
       if (!flag) {
         res.status(404).json({ error: 'Flag not found' });
@@ -73,9 +74,10 @@ export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator)
 
       const results: Record<string, boolean> = {};
 
+      const projectId = req.apiKey?.projectId ?? '';
       for (const key of flags) {
         if (typeof key === 'string') {
-          const flag = await storage.getFlag(key, environment);
+          const flag = await storage.getFlag(projectId, key, environment);
           if (flag) {
             results[key] = evaluator.evaluate(flag, evaluationContext);
           } else {

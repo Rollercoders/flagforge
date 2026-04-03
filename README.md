@@ -1,4 +1,4 @@
-# RollerFlags
+# FlagForge
 
 Open-source, on-premise feature flagging platform built for speed and simplicity.
 
@@ -27,7 +27,7 @@ Edit `.env`:
 ```env
 PORT=3000
 STORAGE_TYPE=sqlite # or "json"
-STORAGE_PATH=./data/rollerflags.db
+STORAGE_PATH=./data/flagforge.db
 ```
 
 ### Running
@@ -257,7 +257,7 @@ Response:
 ### Node.js
 
 ```javascript
-class RollerFlagsClient {
+class FlagForgeClient {
   constructor(apiUrl, apiKey) {
     this.apiUrl = apiUrl;
     this.apiKey = apiKey;
@@ -292,7 +292,7 @@ class RollerFlagsClient {
 }
 
 // Usage
-const client = new RollerFlagsClient(
+const client = new FlagForgeClient(
   'http://localhost:3000',
   'rf_xxxxxxxxxxxxxxxxxx'
 );
@@ -312,7 +312,7 @@ if (enabled) {
 ```python
 import requests
 
-class RollerFlagsClient:
+class FlagForgeClient:
     def __init__(self, api_url, api_key):
         self.api_url = api_url
         self.api_key = api_key
@@ -330,7 +330,7 @@ class RollerFlagsClient:
         return response.json()['enabled']
 
 # Usage
-client = RollerFlagsClient('http://localhost:3000', 'rf_xxxxxxxxxxxxxxxxxx')
+client = FlagForgeClient('http://localhost:3000', 'rf_xxxxxxxxxxxxxxxxxx')
 
 enabled = client.is_enabled('new-checkout-flow', {
     'userId': 'user-123',
@@ -350,7 +350,7 @@ Best for most use cases. Provides ACID guarantees and good performance.
 
 ```env
 STORAGE_TYPE=sqlite
-STORAGE_PATH=./data/rollerflags.db
+STORAGE_PATH=./data/flagforge.db
 ```
 
 ### JSON File
