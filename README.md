@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="ui/public/logo.png" alt="FlagForge" height="80" />
+</p>
+
 # FlagForge
 
 [![Tests](https://github.com/rollercoders/flagforge/actions/workflows/ci.yml/badge.svg)](https://github.com/rollercoders/flagforge/actions/workflows/ci.yml)
@@ -66,6 +70,65 @@ yarn lint
 yarn lint:fix
 ```
 
+## Web App
+
+FlagForge includes a built-in web interface available at `http://localhost:3000` (or whichever port you configure). No separate installation is required — the UI is served directly by the same Node.js process.
+
+### Authentication
+
+The web app is protected by a password set via the `ADMIN_PASSWORD` environment variable. On first access you'll be prompted to sign in.
+
+### Projects
+
+After login, the **Projects** page is your home screen. A project groups feature flags by application (e.g. `mobile-app`, `backend`, `website`).
+
+- **Create a project** — type a name and press Enter or click "Create project"
+- **Delete a project** — click Delete on the project row and confirm
+
+### Environments
+
+Each project can have multiple environments (e.g. `production`, `staging`, `development`). Environments are fully isolated: flags in `production` are invisible to `staging` API keys.
+
+From the Projects page, each project row shows its environments. For each environment you can:
+
+- **Copy the API key** (`ff_…`) — click "Copy" to copy it to the clipboard
+- **Regenerate the API key** — invalidates the old key and generates a new one (confirmation required)
+- **Rename the environment** — click the pencil icon
+- **Delete the environment** — confirmation required
+- **Navigate to flags** — click the environment name to open its flag list
+
+### Feature Flags
+
+Clicking an environment name opens the **Flags** page for that project + environment combination.
+
+Each flag in the list shows:
+- Its **key** (e.g. `new-checkout-flow`)
+- Its **name** (human-readable label)
+- Optional badges: **Targeting** (if user/attribute rules are set) and **Rollout X%** (if a percentage rollout is active)
+- A **toggle** to enable or disable the flag without opening it
+
+Click any flag row to open the edit drawer. Click **+ New Flag** to create one.
+
+#### Flag editor
+
+The drawer on the right lets you configure:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Human-readable label (auto-generates the key on creation) |
+| **Key** | Immutable identifier used in API calls (e.g. `dark-mode`) |
+| **Description** | Optional free-text note |
+| **Enabled** | Master on/off switch (new flags start disabled) |
+| **Targeting — User IDs** | Comma-tag input; the flag returns `true` only for listed user IDs |
+| **Targeting — Attributes** | Key/value rules (e.g. `plan = premium, enterprise`) |
+| **Rollout percentage** | Enables the flag for N% of users via consistent hashing |
+
+**Evaluation order:** User IDs → Attributes → Rollout percentage → Enabled value
+
+#### Live preview
+
+At the bottom of the editor there's a **"Test this flag"** panel. Enter a `userId` and optional attributes to see in real time whether the current configuration would return `true` or `false` for that context — without making any API call.
+
 ## Usage
 
 ### 1. Create an API Key
@@ -85,7 +148,7 @@ Response:
 ```json
 {
   "id": "abc123",
-  "key": "rf_xxxxxxxxxxxxxxxxxx",
+  "key": "ff_xxxxxxxxxxxxxxxxxx",
   "name": "Production Key",
   "environment": "production",
   "createdAt": "2024-01-15T10:00:00.000Z"
@@ -98,7 +161,7 @@ Save the `key` value - you'll need it for authenticated requests.
 
 ```bash
 curl -X POST http://localhost:3000/api/flags \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "key": "new-checkout-flow",
@@ -112,7 +175,7 @@ curl -X POST http://localhost:3000/api/flags \
 
 ```bash
 curl -X POST http://localhost:3000/api/evaluate/new-checkout-flow \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "user-123"
@@ -140,7 +203,7 @@ Enable a flag only for specific users:
 
 ```bash
 curl -X PATCH http://localhost:3000/api/flags/new-checkout-flow \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "targeting": {
@@ -155,7 +218,7 @@ Target users based on attributes:
 
 ```bash
 curl -X PATCH http://localhost:3000/api/flags/premium-feature \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "targeting": {
@@ -171,7 +234,7 @@ Evaluate with attributes:
 
 ```bash
 curl -X POST http://localhost:3000/api/evaluate/premium-feature \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "user-789",
@@ -188,7 +251,7 @@ Gradually roll out to a percentage of users:
 
 ```bash
 curl -X PATCH http://localhost:3000/api/flags/new-feature \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "rollout": {
@@ -205,7 +268,7 @@ Evaluate multiple flags at once:
 
 ```bash
 curl -X POST http://localhost:3000/api/evaluate \
-  -H "Authorization: Bearer rf_xxxxxxxxxxxxxxxxxx" \
+  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "flags": ["feature-a", "feature-b", "feature-c"],
@@ -296,7 +359,7 @@ class FlagForgeClient {
 // Usage
 const client = new FlagForgeClient(
   'http://localhost:3000',
-  'rf_xxxxxxxxxxxxxxxxxx'
+  'ff_xxxxxxxxxxxxxxxxxx'
 );
 
 const enabled = await client.isEnabled('new-checkout-flow', {
@@ -332,7 +395,7 @@ class FlagForgeClient:
         return response.json()['enabled']
 
 # Usage
-client = FlagForgeClient('http://localhost:3000', 'rf_xxxxxxxxxxxxxxxxxx')
+client = FlagForgeClient('http://localhost:3000', 'ff_xxxxxxxxxxxxxxxxxx')
 
 enabled = client.is_enabled('new-checkout-flow', {
     'userId': 'user-123',
@@ -393,7 +456,6 @@ MIT
 
 ## Roadmap
 
-- [ ] Web UI for flag management
 - [ ] Webhooks for flag changes
 - [ ] Audit log
 - [ ] Metrics and analytics
