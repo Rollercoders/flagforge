@@ -40,9 +40,13 @@ function ProjectRow({ project, onDeleted }: ProjectRowProps) {
   const [confirmDeleteEnvId, setConfirmDeleteEnvId] = useState<string | null>(null);
 
   const loadEnvs = useCallback(async () => {
-    const envs = await getEnvironments(project.id);
-    setEnvironments(envs);
-  }, [project.id]);
+    try {
+      const envs = await getEnvironments(project.id);
+      setEnvironments(envs);
+    } catch {
+      showToast('Failed to load environments', 'error');
+    }
+  }, [project.id, showToast]);
 
   useEffect(() => { void loadEnvs(); }, [loadEnvs]);
 

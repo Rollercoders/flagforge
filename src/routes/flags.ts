@@ -12,7 +12,13 @@ export function createFlagsRouter(storage: Storage) {
         res.status(400).json({ error: 'key and name are required' });
         return;
       }
-      const { projectId, environment } = req.apiKey!;
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.body['projectId'] === 'string'
+        ? req.body['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.body['environment'] === 'string'
+        ? req.body['environment']
+        : tokenEnvironment;
       const flags = await storage.createFlag({ projectId, key, name, description, enabled: false, environment, targeting, rollout });
       const flagForEnv = flags.find(f => f.environment === environment);
       if (!flagForEnv) {
@@ -31,7 +37,14 @@ export function createFlagsRouter(storage: Storage) {
 
   router.get('/', async (req: AuthRequest, res) => {
     try {
-      const { projectId, environment } = req.apiKey!;
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      // Admin UI token allows scoping by query params; regular API keys use their own projectId/environment
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : tokenEnvironment;
       const flags = await storage.getAllFlags(projectId, environment);
       res.json(flags);
     } catch (_error) {
@@ -42,7 +55,13 @@ export function createFlagsRouter(storage: Storage) {
   router.get('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const { projectId, environment } = req.apiKey!;
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : tokenEnvironment;
       const flag = await storage.getFlag(projectId, key, environment);
       if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
       res.json(flag);
@@ -54,7 +73,13 @@ export function createFlagsRouter(storage: Storage) {
   router.patch('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const { projectId, environment } = req.apiKey!;
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : tokenEnvironment;
       const flag = await storage.getFlag(projectId, key, environment);
       if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
       const updates: Partial<Pick<Flag, 'name' | 'description' | 'enabled' | 'targeting' | 'rollout'>> = {};
@@ -73,7 +98,13 @@ export function createFlagsRouter(storage: Storage) {
   router.delete('/:key', async (req: AuthRequest, res) => {
     try {
       const { key } = req.params;
-      const { projectId, environment } = req.apiKey!;
+      const { projectId: tokenProjectId, environment: tokenEnvironment } = req.apiKey!;
+      const projectId = tokenProjectId === '__admin__' && typeof req.query['projectId'] === 'string'
+        ? req.query['projectId']
+        : tokenProjectId;
+      const environment = tokenProjectId === '__admin__' && typeof req.query['environment'] === 'string'
+        ? req.query['environment']
+        : tokenEnvironment;
       const flag = await storage.getFlag(projectId, key, environment);
       if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
       await storage.deleteFlag(projectId, key);

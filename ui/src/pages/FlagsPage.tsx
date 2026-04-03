@@ -118,7 +118,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
     if (!projectId || !environment) { setFlags([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const flags = await getFlags(environment);
+      const flags = await getFlags(projectId, environment);
       setFlags(flags);
     } catch {
       showToast('Failed to load flags', 'error');
@@ -153,7 +153,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
 
   async function handleToggleEnabled(flag: Flag) {
     try {
-      await updateFlag(flag.key, { enabled: !flag.enabled });
+      await updateFlag(flag.key, projectId, environment, { enabled: !flag.enabled });
       await loadFlags();
     } catch {
       showToast('Failed to update flag', 'error');
@@ -171,10 +171,10 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
           targeting: payload.targeting,
           rollout: payload.rollout,
         };
-        await updateFlag(editingFlag.key, updates);
+        await updateFlag(editingFlag.key, projectId, environment, updates);
         showToast('Flag updated');
       } else {
-        await createFlag({
+        await createFlag(projectId, environment, {
           key: payload.key,
           name: payload.name,
           description: payload.description,
@@ -196,7 +196,7 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
     if (!editingFlag) return;
     setSaving(true);
     try {
-      await deleteFlag(editingFlag.key);
+      await deleteFlag(editingFlag.key, projectId, environment);
       showToast('Flag deleted');
       closeDrawer();
       await loadFlags();

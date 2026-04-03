@@ -54,14 +54,19 @@ export function ApiKeysPage({ projectId, environments }: {
     void loadKeys();
   }, [loadKeys]);
 
+  function closeModal() {
+    setModalOpen(false);
+    setNewName('');
+    setNewEnv(environments[0] ?? '');
+  }
+
   async function handleCreate() {
     if (!newName || !newEnv) return;
     setSaving(true);
     try {
       await createApiKey(newName, newEnv, projectId);
       showToast('API key created');
-      setModalOpen(false);
-      setNewName('');
+      closeModal();
       await loadKeys();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create API key', 'error');
@@ -267,7 +272,7 @@ export function ApiKeysPage({ projectId, environments }: {
       {modalOpen && (
         <>
           <div
-            onClick={() => setModalOpen(false)}
+            onClick={() => closeModal()}
             style={{
               position: 'fixed',
               inset: 0,
@@ -332,7 +337,7 @@ export function ApiKeysPage({ projectId, environments }: {
                 {saving ? 'Creating...' : 'Create'}
               </button>
               <button
-                onClick={() => setModalOpen(false)}
+                onClick={() => closeModal()}
                 style={{
                   padding: '10px 16px',
                   background: 'white',
