@@ -1,5 +1,7 @@
 # FlagForge
 
+[![Tests](https://github.com/rollercoders/flagforge/actions/workflows/ci.yml/badge.svg)](https://github.com/rollercoders/flagforge/actions/workflows/ci.yml)
+
 Open-source, on-premise feature flagging platform built for speed and simplicity.
 
 ## Features
