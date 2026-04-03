@@ -1,6 +1,6 @@
-# RollerFlags Test Suite
+# FlagForge Test Suite
 
-Comprehensive test suite for RollerFlags feature flagging platform.
+Comprehensive test suite for FlagForge feature flagging platform.
 
 ## Test Coverage
 

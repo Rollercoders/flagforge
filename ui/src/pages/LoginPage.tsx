@@ -41,8 +41,8 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/logo.png" alt="RollerFlags" style={{ height: 48, marginBottom: 8 }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>RollerFlags</h1>
+          <img src="/logo.png" alt="FlagForge" style={{ height: 48, marginBottom: 8 }} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>FlagForge</h1>
           <p style={{ fontSize: 14, color: '#374151', marginTop: 4 }}>Sign in to continue</p>
         </div>
         <form onSubmit={e => void handleSubmit(e)}>

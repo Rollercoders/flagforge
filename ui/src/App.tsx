@@ -109,7 +109,7 @@ export default function App() {
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         <aside style={{ width: 220, background: '#1e293b', color: '#94a3b8', display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0 }}>
           <div style={{ padding: '20px 20px 16px', color: 'white', fontWeight: 700, fontSize: 16, borderBottom: '1px solid #334155' }}>
-            <img src="/logo.png" alt="RollerFlags" style={{ height: 24, marginRight: 8, verticalAlign: 'middle' }} />RollerFlags
+            <img src="/logo.png" alt="FlagForge" style={{ height: 24, marginRight: 8, verticalAlign: 'middle' }} />FlagForge
           </div>
 
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #334155' }}>

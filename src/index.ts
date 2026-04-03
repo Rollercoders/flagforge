@@ -22,7 +22,7 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const STORAGE_TYPE = process.env.STORAGE_TYPE || 'sqlite';
-const STORAGE_PATH = process.env.STORAGE_PATH || './data/rollerflags.db';
+const STORAGE_PATH = process.env.STORAGE_PATH || './data/flagforge.db';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -119,7 +119,7 @@ async function main() {
   });
 
   app.listen(PORT, () => {
-    console.log(`\n🚀 RollerFlags is running on http://localhost:${PORT}`);
+    console.log(`\n🚀 FlagForge is running on http://localhost:${PORT}`);
     console.log(`   Storage: ${STORAGE_TYPE}`);
     console.log(`   Path: ${STORAGE_PATH}\n`);
   });

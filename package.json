@@ -1,5 +1,5 @@
 {
-  "name": "rollerflags",
+  "name": "flagforge",
   "version": "0.1.0",
   "description": "Open-source, on-premise feature flagging platform",
   "type": "module",
