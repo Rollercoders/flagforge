@@ -31,7 +31,14 @@ describe('Auth Middleware', () => {
       createApiKey: vi.fn(),
       getApiKey: vi.fn(),
       getAllApiKeys: vi.fn(),
-      deleteApiKey: vi.fn()
+      deleteApiKey: vi.fn(),
+      createProject: vi.fn(),
+      getProject: vi.fn(),
+      getAllProjects: vi.fn(),
+      deleteProject: vi.fn(),
+      createEnvironment: vi.fn(),
+      getEnvironmentsByProject: vi.fn(),
+      deleteEnvironment: vi.fn()
     };
   });
 
@@ -87,6 +94,7 @@ describe('Auth Middleware', () => {
       id: 'key-id-123',
       key: 'valid-key',
       name: 'Test Key',
+      projectId: 'test-project',
       environment: 'production',
       createdAt: new Date().toISOString()
     };
@@ -105,6 +113,7 @@ describe('Auth Middleware', () => {
     expect(mockReq.apiKey).toEqual({
       id: 'key-id-123',
       name: 'Test Key',
+      projectId: 'test-project',
       environment: 'production'
     });
     expect(mockNext).toHaveBeenCalled();
@@ -136,6 +145,7 @@ describe('Auth Middleware', () => {
       id: 'key-id-123',
       key: 'rf_abc123xyz',
       name: 'Test Key',
+      projectId: 'test-project',
       environment: 'staging',
       createdAt: new Date().toISOString()
     };

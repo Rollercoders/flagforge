@@ -5,8 +5,8 @@ export interface AuthRequest extends Request {
   apiKey?: {
     id: string;
     name: string;
+    projectId: string;
     environment: string;
-    projectId?: string;
   };
 }
 
@@ -32,8 +32,8 @@ export function createAuthMiddleware(storage: Storage) {
       req.apiKey = {
         id: apiKey.id,
         name: apiKey.name,
+        projectId: apiKey.projectId,
         environment: apiKey.environment,
-        projectId: apiKey.projectId
       };
 
       next();
