@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getProjects, createProject, deleteProject,
-  getEnvironments, createEnvironment, deleteEnvironment, renameEnvironment,
+  getEnvironments, createEnvironment, deleteEnvironment, renameEnvironment, regenerateEnvironmentKey,
   Project, Environment,
 } from '../api/projects';
 import { Spinner } from '../components/Spinner';
@@ -41,11 +41,11 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
   const [confirmDeleteEnvId, setConfirmDeleteEnvId] = useState<string | null>(null);
   const [editingEnvId, setEditingEnvId] = useState<string | null>(null);
   const [editingEnvName, setEditingEnvName] = useState('');
+  const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(null);
 
   const loadEnvs = useCallback(async () => {
     try {
-      const envs = await getEnvironments(project.id);
-      setEnvironments(envs);
+      setEnvironments(await getEnvironments(project.id));
     } catch {
       showToast('Failed to load environments', 'error');
     }
@@ -90,6 +90,17 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
     }
   }
 
+  async function handleRegenerateKey(envId: string) {
+    try {
+      const updated = await regenerateEnvironmentKey(envId);
+      setEnvironments(prev => prev.map(e => e.id === envId ? updated : e));
+      setConfirmRegenerateId(null);
+      showToast('API key regenerated');
+    } catch {
+      showToast('Failed to regenerate key', 'error');
+    }
+  }
+
   async function handleDeleteProject() {
     try {
       await deleteProject(project.id);
@@ -97,6 +108,10 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
     } catch {
       showToast('Failed to delete project', 'error');
     }
+  }
+
+  function copyKey(key: string) {
+    void navigator.clipboard.writeText(key).then(() => showToast('Key copied to clipboard'));
   }
 
   return (
@@ -120,7 +135,7 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
       </div>
 
       {environments.map(env => (
-        <div key={env.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px 10px 36px', borderBottom: '1px solid #f9fafb' }}>
+        <div key={env.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px 10px 36px', borderBottom: '1px solid #f9fafb', gap: 8, flexWrap: 'wrap' }}>
           {editingEnvId === env.id ? (
             <>
               <input
@@ -141,25 +156,54 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
           ) : (
             <>
               <span
-                style={{ flex: 1, fontSize: 13, color: '#374151', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#d1d5db' }}
+                style={{ fontSize: 13, color: '#374151', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#d1d5db', minWidth: 80 }}
                 onClick={() => onSelectEnvironment(project, env.name)}
                 title="Go to flags for this environment"
               >{env.name}</span>
-              {confirmDeleteEnvId === env.id ? (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button style={{ ...btnStyle('danger'), padding: '4px 10px', fontSize: 12 }} onClick={() => void handleDeleteEnv(env.id)}>Confirm</button>
-                  <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }} onClick={() => setConfirmDeleteEnvId(null)}>Cancel</button>
+
+              <code style={{ fontSize: 11, color: '#6b7280', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', letterSpacing: '0.03em' }}>
+                ff_••••••••••••••••
+              </code>
+              <button
+                onClick={() => copyKey(env.key)}
+                title="Copy API key"
+                style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+              >
+                Copy
+              </button>
+
+              {confirmRegenerateId === env.id ? (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button style={{ ...btnStyle('danger'), padding: '2px 8px', fontSize: 11 }} onClick={() => void handleRegenerateKey(env.id)}>Confirm</button>
+                  <button style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }} onClick={() => setConfirmRegenerateId(null)}>Cancel</button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }}
-                    onClick={() => { setEditingEnvId(env.id); setEditingEnvName(env.name); setConfirmDeleteEnvId(null); }}
-                    title="Rename"
-                  >✎</button>
-                  <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12, color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => setConfirmDeleteEnvId(env.id)}>Delete</button>
-                </div>
+                <button
+                  style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                  title="Regenerate API key"
+                  onClick={() => { setConfirmRegenerateId(env.id); setConfirmDeleteEnvId(null); }}
+                >
+                  Regenerate
+                </button>
               )}
+
+              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                {confirmDeleteEnvId === env.id ? (
+                  <>
+                    <button style={{ ...btnStyle('danger'), padding: '4px 10px', fontSize: 12 }} onClick={() => void handleDeleteEnv(env.id)}>Confirm</button>
+                    <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }} onClick={() => setConfirmDeleteEnvId(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }}
+                      onClick={() => { setEditingEnvId(env.id); setEditingEnvName(env.name); setConfirmDeleteEnvId(null); setConfirmRegenerateId(null); }}
+                      title="Rename"
+                    >✎</button>
+                    <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12, color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => { setConfirmDeleteEnvId(env.id); setConfirmRegenerateId(null); }}>Delete</button>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -249,7 +293,7 @@ export function ProjectsPage({ onProjectsChange, onSelectEnvironment }: { onProj
       ) : projects.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 64, border: '2px dashed #e5e7eb', borderRadius: 12 }}>
           <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 8 }}>No projects yet</p>
-          <p style={{ fontSize: 14, color: '#4b5563', marginBottom: 4 }}>Projects group your feature flags and API keys by application.</p>
+          <p style={{ fontSize: 14, color: '#4b5563', marginBottom: 4 }}>Projects group your feature flags by application.</p>
           <p style={{ fontSize: 14, color: '#4b5563', marginBottom: 24 }}>Create your first project to start managing your features.</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <input

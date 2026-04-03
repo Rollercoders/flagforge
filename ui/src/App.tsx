@@ -1,7 +1,6 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { FlagsPage } from './pages/FlagsPage';
-import { ApiKeysPage } from './pages/ApiKeysPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { LoginPage } from './pages/LoginPage';
 import { Spinner } from './components/Spinner';
@@ -136,7 +135,6 @@ export default function App() {
             {[
               { to: '/projects', label: 'Projects' },
               { to: '/flags', label: 'Feature Flags' },
-              { to: '/api-keys', label: 'API Keys' },
             ].map(({ to, label }) => (
               <NavLink key={to} to={to} style={({ isActive }) => ({
                 display: 'block', padding: '8px 12px', borderRadius: 6, marginBottom: 2,
@@ -159,8 +157,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/flags" replace />} />
             <Route path="/flags" element={<FlagsPage projectId={project?.id ?? ''} projectName={project?.name ?? ''} environment={environment} />} />
-            <Route path="/api-keys" element={<ApiKeysPage projectId={project?.id ?? ''} environments={environments.map(e => e.name)} />} />
-            <Route path="/projects" element={<ProjectsPage onProjectsChange={refreshProjects} onSelectEnvironment={selectEnvironment} />} />
+<Route path="/projects" element={<ProjectsPage onProjectsChange={refreshProjects} onSelectEnvironment={selectEnvironment} />} />
           </Routes>
         </main>
       </div>
