@@ -346,14 +346,16 @@ export function FlagsPage({ projectId, environment }: FlagsPageProps) {
           />
         </div>
 
-        {/* enabled */}
-        <div style={{ ...fieldStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>Enabled</label>
-          <Toggle
-            checked={form.enabled}
-            onChange={v => setForm(f => ({ ...f, enabled: v }))}
-          />
-        </div>
+        {/* enabled — only shown when editing (new flags always start disabled) */}
+        {editingFlag && (
+          <div style={{ ...fieldStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>Enabled</label>
+            <Toggle
+              checked={form.enabled}
+              onChange={v => setForm(f => ({ ...f, enabled: v }))}
+            />
+          </div>
+        )}
 
         {/* targeting user IDs */}
         <div style={{ ...fieldStyle, borderTop: '1px solid #f3f4f6', paddingTop: 16 }}>

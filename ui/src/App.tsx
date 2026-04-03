@@ -56,7 +56,12 @@ export default function App() {
   function refreshProjects() {
     getProjects().then(ps => {
       setProjects(ps);
-      if (ps.length > 0 && !project) setProject(ps[0]);
+      if (project && !ps.find(p => p.id === project.id)) {
+        // currently selected project was deleted — reselect
+        setProject(ps.length > 0 ? ps[0] : null);
+      } else if (!project && ps.length > 0) {
+        setProject(ps[0]);
+      }
     }).catch(() => {});
   }
 
