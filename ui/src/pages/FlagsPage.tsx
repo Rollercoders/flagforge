@@ -5,7 +5,6 @@ import {
   updateFlag,
   deleteFlag,
   Flag,
-  CreateFlagPayload,
   UpdateFlagPayload,
 } from '../api/flags';
 import { Toggle } from '../components/Toggle';
@@ -15,6 +14,7 @@ import { Drawer } from '../components/Drawer';
 import { useToast } from '../components/Toast';
 
 interface FlagsPageProps {
+  projectId: string;
   environment: string;
 }
 
@@ -55,7 +55,7 @@ function flagToForm(flag: Flag): FlagFormState {
   };
 }
 
-function formToPayload(form: FlagFormState): CreateFlagPayload {
+function formToPayload(form: FlagFormState) {
   const userIds = form.targetingUserIds
     .split(',')
     .map(s => s.trim())
@@ -78,7 +78,6 @@ function formToPayload(form: FlagFormState): CreateFlagPayload {
     key: form.key,
     name: form.name,
     description: form.description || undefined,
-    enabled: form.enabled,
     targeting: hasTargeting ? { userIds: userIds.length ? userIds : undefined, attributes: Object.keys(attributes).length ? attributes : undefined } : undefined,
     rollout: rolloutPct != null ? { percentage: rolloutPct } : undefined,
   };
@@ -105,7 +104,7 @@ const fieldStyle: React.CSSProperties = {
   marginBottom: 16,
 };
 
-export function FlagsPage({ environment }: FlagsPageProps) {
+export function FlagsPage({ projectId, environment }: FlagsPageProps) {
   const { showToast } = useToast();
   const [flags, setFlags] = useState<Flag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,6 +115,7 @@ export function FlagsPage({ environment }: FlagsPageProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadFlags = useCallback(async () => {
+    if (!projectId || !environment) { setFlags([]); setLoading(false); return; }
     setLoading(true);
     try {
       const flags = await getFlags(environment);
@@ -125,7 +125,7 @@ export function FlagsPage({ environment }: FlagsPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [environment, showToast]);
+  }, [projectId, environment, showToast]);
 
   useEffect(() => {
     void loadFlags();
@@ -168,14 +168,19 @@ export function FlagsPage({ environment }: FlagsPageProps) {
         const updates: UpdateFlagPayload = {
           name: payload.name,
           description: payload.description,
-          enabled: payload.enabled,
           targeting: payload.targeting,
           rollout: payload.rollout,
         };
         await updateFlag(editingFlag.key, updates);
         showToast('Flag updated');
       } else {
-        await createFlag({ ...payload, environment });
+        await createFlag({
+          key: payload.key,
+          name: payload.name,
+          description: payload.description,
+          targeting: payload.targeting,
+          rollout: payload.rollout,
+        });
         showToast('Flag created');
       }
       closeDrawer();
