@@ -103,7 +103,7 @@ export function ApiKeysPage({ projectId, environments }: {
           onClick={() => setModalOpen(true)}
           style={{
             padding: '8px 16px',
-            background: '#3b82f6',
+            background: '#1d4ed8',
             color: 'white',
             border: 'none',
             borderRadius: 6,
@@ -126,7 +126,7 @@ export function ApiKeysPage({ projectId, environments }: {
           style={{
             textAlign: 'center',
             padding: 64,
-            color: '#9ca3af',
+            color: '#4b5563',
             border: '2px dashed #e5e7eb',
             borderRadius: 12,
           }}
@@ -136,7 +136,7 @@ export function ApiKeysPage({ projectId, environments }: {
             onClick={() => setModalOpen(true)}
             style={{
               padding: '8px 16px',
-              background: '#3b82f6',
+              background: '#1d4ed8',
               color: 'white',
               border: 'none',
               borderRadius: 6,
@@ -171,7 +171,7 @@ export function ApiKeysPage({ projectId, environments }: {
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
                   {apiKey.name}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#6b7280' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#374151' }}>
                   <span
                     style={{
                       background: '#f3f4f6',
@@ -189,7 +189,7 @@ export function ApiKeysPage({ projectId, environments }: {
                 <code
                   style={{
                     fontSize: 12,
-                    color: '#6b7280',
+                    color: '#374151',
                     background: '#f9fafb',
                     padding: '4px 8px',
                     borderRadius: 4,
@@ -208,7 +208,7 @@ export function ApiKeysPage({ projectId, environments }: {
                     padding: '4px 8px',
                     cursor: 'pointer',
                     fontSize: 12,
-                    color: '#6b7280',
+                    color: '#374151',
                   }}
                 >
                   Copy
@@ -240,7 +240,7 @@ export function ApiKeysPage({ projectId, environments }: {
                         borderRadius: 4,
                         fontSize: 12,
                         cursor: 'pointer',
-                        color: '#6b7280',
+                        color: '#374151',
                       }}
                     >
                       Cancel
@@ -325,7 +325,7 @@ export function ApiKeysPage({ projectId, environments }: {
                 style={{
                   flex: 1,
                   padding: '10px',
-                  background: saving || !newName || !newEnv || !projectId ? '#93c5fd' : '#3b82f6',
+                  background: saving || !newName || !newEnv || !projectId ? '#9ca3af' : '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: 6,
@@ -345,7 +345,7 @@ export function ApiKeysPage({ projectId, environments }: {
                   borderRadius: 6,
                   fontSize: 14,
                   cursor: 'pointer',
-                  color: '#6b7280',
+                  color: '#374151',
                 }}
               >
                 Cancel

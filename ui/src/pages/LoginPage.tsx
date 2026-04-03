@@ -41,9 +41,9 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🚩</div>
+          <img src="/logo.png" alt="RollerFlags" style={{ height: 48, marginBottom: 8 }} />
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>RollerFlags</h1>
-          <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Sign in to continue</p>
+          <p style={{ fontSize: 14, color: '#374151', marginTop: 4 }}>Sign in to continue</p>
         </div>
         <form onSubmit={e => void handleSubmit(e)}>
           <div style={{ marginBottom: 16 }}>
@@ -77,7 +77,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
             style={{
               width: '100%',
               padding: '10px',
-              background: loading || !password ? '#93c5fd' : '#3b82f6',
+              background: loading || !password ? '#9ca3af' : '#1d4ed8',
               color: 'white',
               border: 'none',
               borderRadius: 6,

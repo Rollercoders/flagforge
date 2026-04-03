@@ -18,7 +18,7 @@ export function Toggle({ checked, onChange, disabled = false }: ToggleProps) {
         borderRadius: 12,
         border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        background: checked ? '#3b82f6' : '#d1d5db',
+        background: checked ? '#1d4ed8' : '#d1d5db',
         position: 'relative',
         transition: 'background 0.15s',
         flexShrink: 0,
