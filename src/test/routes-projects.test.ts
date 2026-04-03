@@ -84,11 +84,14 @@ describe('Projects Routes', () => {
   describe('GET /admin/projects/:id/environments', () => {
     it('should list environments for a project', async () => {
       const proj = await request(app).post('/admin/projects').send({ name: 'my-app' });
-      await request(app).post(`/admin/projects/${proj.body.id}/environments`).send({ name: 'prod' });
+      await request(app).post(`/admin/projects/${proj.body.id}/environments`).send({ name: 'staging' });
       const res = await request(app).get(`/admin/projects/${proj.body.id}/environments`);
       expect(res.status).toBe(200);
-      expect(res.body).toHaveLength(1);
-      expect(res.body[0].name).toBe('prod');
+      // "Production" is auto-created on project creation, plus the one we added
+      expect(res.body).toHaveLength(2);
+      const names = res.body.map((e: { name: string }) => e.name);
+      expect(names).toContain('staging');
+      expect(names).toContain('Production');
     });
   });
 
@@ -153,7 +156,8 @@ describe('Projects Routes', () => {
       expect(res.status).toBe(204);
 
       const envs = await storage.getEnvironmentsByProject(projectId);
-      expect(envs).toHaveLength(0);
+      // "Production" is auto-created; only "staging" was deleted
+      expect(envs.find(e => e.name === 'staging')).toBeUndefined();
       const flag = await storage.getFlag(projectId, 'feat', 'staging');
       expect(flag).toBeNull();
       const keys = await storage.getAllApiKeys(projectId);
@@ -164,6 +168,77 @@ describe('Projects Routes', () => {
       const proj = await request(app).post('/admin/projects').send({ name: 'my-app' });
       const res = await request(app).delete(`/admin/projects/${proj.body.id}/environments/nonexistent-id`);
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('PATCH /admin/projects/:id/environments/:envId', () => {
+    let projectId: string;
+    let envId: string;
+
+    beforeEach(async () => {
+      const proj = await request(app).post('/admin/projects').send({ name: 'rename-test' });
+      projectId = proj.body.id;
+      // POST /projects auto-creates "Production"; create an additional "staging" env
+      const env = await request(app).post(`/admin/projects/${projectId}/environments`).send({ name: 'staging' });
+      envId = env.body.id;
+    });
+
+    it('should rename an environment and return the updated object', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: 'qa' });
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(envId);
+      expect(res.body.name).toBe('qa');
+      expect(res.body.projectId).toBe(projectId);
+    });
+
+    it('should cascade the rename to flag rows', async () => {
+      await storage.createFlag({ projectId, key: 'my-flag', name: 'My Flag', enabled: false, environment: 'staging' });
+      await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: 'qa' });
+      const flag = await storage.getFlag(projectId, 'my-flag', 'qa');
+      expect(flag).not.toBeNull();
+      expect(flag?.environment).toBe('qa');
+      const oldFlag = await storage.getFlag(projectId, 'my-flag', 'staging');
+      expect(oldFlag).toBeNull();
+    });
+
+    it('should cascade the rename to api_key rows', async () => {
+      await storage.createApiKey({ key: 'rf_staging123', name: 'Staging Key', environment: 'staging', projectId });
+      await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: 'qa' });
+      const keys = await storage.getAllApiKeys(projectId);
+      const renamed = keys.find(k => k.name === 'Staging Key');
+      expect(renamed?.environment).toBe('qa');
+    });
+
+    it('should return 400 when name is missing', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({});
+      expect(res.status).toBe(400);
+    });
+
+    it('should return 400 when name is blank', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: '   ' });
+      expect(res.status).toBe(400);
+    });
+
+    it('should return 404 for non-existent envId', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/does-not-exist`).send({ name: 'x' });
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 404 when envId belongs to a different project', async () => {
+      const otherProj = await request(app).post('/admin/projects').send({ name: 'other-project' });
+      const res = await request(app).patch(`/admin/projects/${otherProj.body.id}/environments/${envId}`).send({ name: 'x' });
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 409 when the new name already exists in the same project', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: 'Production' });
+      expect(res.status).toBe(409);
+    });
+
+    it('should allow renaming to the same name', async () => {
+      const res = await request(app).patch(`/admin/projects/${projectId}/environments/${envId}`).send({ name: 'staging' });
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('staging');
     });
   });
 });

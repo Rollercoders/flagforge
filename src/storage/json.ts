@@ -92,6 +92,24 @@ export class JsonStorage implements Storage {
     this.save();
   }
 
+  async renameEnvironment(id: string, name: string): Promise<Environment> {
+    const env = this.data.environments.find(e => e.id === id);
+    if (!env) throw new Error('Environment not found');
+    if (this.data.environments.some(e => e.projectId === env.projectId && e.name === name && e.id !== id)) {
+      throw new Error(`Environment name '${name}' already exists in this project`);
+    }
+    const oldName = env.name;
+    env.name = name;
+    for (const flag of this.data.flags) {
+      if (flag.projectId === env.projectId && flag.environment === oldName) flag.environment = name;
+    }
+    for (const key of this.data.apiKeys) {
+      if (key.projectId === env.projectId && key.environment === oldName) key.environment = name;
+    }
+    this.save();
+    return { ...env };
+  }
+
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     const envNames = this.data.environments
       .filter(e => e.projectId === flag.projectId)

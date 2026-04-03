@@ -38,7 +38,8 @@ describe('Auth Middleware', () => {
       deleteProject: vi.fn(),
       createEnvironment: vi.fn(),
       getEnvironmentsByProject: vi.fn(),
-      deleteEnvironment: vi.fn()
+      deleteEnvironment: vi.fn(),
+      renameEnvironment: vi.fn()
     };
   });
 

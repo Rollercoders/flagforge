@@ -130,6 +130,22 @@ export class SqliteStorage implements Storage {
     this.db.prepare('DELETE FROM environments WHERE id = ?').run(id);
   }
 
+  async renameEnvironment(id: string, name: string): Promise<Environment> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db;
+    const row = db.prepare('SELECT * FROM environments WHERE id = ?').get(id) as any;
+    if (!row) throw new Error('Environment not found');
+    const oldName: string = row.name;
+    const now = new Date().toISOString();
+    db.transaction(() => {
+      db.prepare('UPDATE environments SET name = ? WHERE id = ?').run(name, id);
+      db.prepare('UPDATE flags SET environment = ?, updated_at = ? WHERE project_id = ? AND environment = ?').run(name, now, row.project_id, oldName);
+      db.prepare('UPDATE api_keys SET environment = ? WHERE project_id = ? AND environment = ?').run(name, row.project_id, oldName);
+    })();
+    const updated = db.prepare('SELECT * FROM environments WHERE id = ?').get(id) as any;
+    return { id: updated.id, projectId: updated.project_id, name: updated.name, createdAt: updated.created_at };
+  }
+
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     if (!this.db) throw new Error('Database not initialized');
 

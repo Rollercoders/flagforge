@@ -61,6 +61,7 @@ export interface Storage {
   createEnvironment(env: Omit<Environment, 'id' | 'createdAt'>): Promise<Environment>;
   getEnvironmentsByProject(projectId: string): Promise<Environment[]>;
   deleteEnvironment(id: string): Promise<void>;
+  renameEnvironment(id: string, name: string): Promise<Environment>;
 
   // Flags
   createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]>;

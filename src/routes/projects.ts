@@ -9,6 +9,7 @@ export function createProjectsRouter(storage: Storage) {
       const { name } = req.body as { name?: string };
       if (!name) { res.status(400).json({ error: 'name is required' }); return; }
       const project = await storage.createProject({ name });
+      await storage.createEnvironment({ projectId: project.id, name: 'Production' });
       res.status(201).json(project);
     } catch (_error: any) {
       if (_error.message?.includes('UNIQUE constraint') || _error.message?.includes('already exists')) {
@@ -73,6 +74,24 @@ export function createProjectsRouter(storage: Storage) {
       res.status(204).send();
     } catch (_error) {
       res.status(500).json({ error: 'Failed to delete environment' });
+    }
+  });
+
+  router.patch('/projects/:id/environments/:envId', async (req, res) => {
+    try {
+      const { name } = req.body as { name?: string };
+      if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
+      const envs = await storage.getEnvironmentsByProject(req.params.id);
+      const env = envs.find(e => e.id === req.params.envId);
+      if (!env) { res.status(404).json({ error: 'Environment not found' }); return; }
+      const updated = await storage.renameEnvironment(req.params.envId, name.trim());
+      res.json(updated);
+    } catch (_error: any) {
+      if (_error.message?.includes('UNIQUE constraint') || _error.message?.includes('already exists')) {
+        res.status(409).json({ error: 'Environment name already exists in this project' });
+      } else {
+        res.status(500).json({ error: 'Failed to rename environment' });
+      }
     }
   });
 
