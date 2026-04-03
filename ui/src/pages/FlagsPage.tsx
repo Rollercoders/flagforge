@@ -24,9 +24,49 @@ interface FlagFormState {
   name: string;
   description: string;
   enabled: boolean;
-  targetingUserIds: string;
+  targetingUserIds: string[];
+  targetingUserIdInput: string;
   targetingAttributes: { key: string; values: string }[];
   rolloutPercentage: string;
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+function evaluateFlag(form: FlagFormState, userId: string, attrs: { key: string; value: string }[]): boolean {
+  if (!form.enabled) return false;
+
+  const hasUserIds = form.targetingUserIds.length > 0;
+  const hasAttrs = form.targetingAttributes.some(a => a.key.trim());
+  const hasTargeting = hasUserIds || hasAttrs;
+
+  if (hasTargeting) {
+    if (hasUserIds && userId && form.targetingUserIds.includes(userId)) return true;
+    if (hasAttrs) {
+      const attrMap: Record<string, string> = {};
+      for (const a of attrs) { if (a.key.trim()) attrMap[a.key.trim()] = a.value; }
+      for (const ta of form.targetingAttributes) {
+        if (!ta.key.trim()) continue;
+        const vals = ta.values.split(',').map(s => s.trim()).filter(Boolean);
+        if (attrMap[ta.key.trim()] && vals.includes(attrMap[ta.key.trim()])) return true;
+      }
+    }
+    if (!form.rolloutPercentage) return false;
+  }
+
+  if (form.rolloutPercentage) {
+    if (!userId) return false;
+    return (hashString(userId) % 100) < Number(form.rolloutPercentage);
+  }
+
+  return true;
 }
 
 function emptyForm(): FlagFormState {
@@ -35,7 +75,8 @@ function emptyForm(): FlagFormState {
     name: '',
     description: '',
     enabled: false,
-    targetingUserIds: '',
+    targetingUserIds: [],
+    targetingUserIdInput: '',
     targetingAttributes: [],
     rolloutPercentage: '',
   };
@@ -47,7 +88,8 @@ function flagToForm(flag: Flag): FlagFormState {
     name: flag.name,
     description: flag.description ?? '',
     enabled: flag.enabled,
-    targetingUserIds: flag.targeting?.userIds?.join(', ') ?? '',
+    targetingUserIds: flag.targeting?.userIds ?? [],
+    targetingUserIdInput: '',
     targetingAttributes: Object.entries(flag.targeting?.attributes ?? {}).map(([k, v]) => ({
       key: k,
       values: v.join(', '),
@@ -57,10 +99,7 @@ function flagToForm(flag: Flag): FlagFormState {
 }
 
 function formToPayload(form: FlagFormState) {
-  const userIds = form.targetingUserIds
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+  const userIds = form.targetingUserIds;
 
   const attributes: Record<string, string[]> = {};
   for (const attr of form.targetingAttributes) {
@@ -114,6 +153,9 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
   const [form, setForm] = useState<FlagFormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUserId, setPreviewUserId] = useState('');
+  const [previewAttrs, setPreviewAttrs] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
 
   const loadFlags = useCallback(async () => {
     if (!projectId || !environment) { setFlags([]); setLoading(false); return; }
@@ -317,6 +359,28 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
         onClose={closeDrawer}
         title={editingFlag ? `Edit: ${editingFlag.key}` : 'New Flag'}
       >
+        {!editingFlag && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 4 }}>New flags are created disabled by default.</p>
+            <p style={{ fontSize: 13, color: '#4b5563' }}>When no rules match, the flag returns its enabled value.</p>
+          </div>
+        )}
+
+        {/* name */}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Name *</label>
+          <input
+            style={inputStyle}
+            value={form.name}
+            onChange={e => {
+              const name = e.target.value;
+              const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+              setForm(f => ({ ...f, name, ...(editingFlag ? {} : { key }) }));
+            }}
+            placeholder="e.g. Dark Mode"
+          />
+        </div>
+
         {/* key */}
         <div style={fieldStyle}>
           <label style={labelStyle}>Key *</label>
@@ -326,17 +390,6 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
             readOnly={!!editingFlag}
             onChange={e => setForm(f => ({ ...f, key: e.target.value }))}
             placeholder="e.g. dark-mode"
-          />
-        </div>
-
-        {/* name */}
-        <div style={fieldStyle}>
-          <label style={labelStyle}>Name *</label>
-          <input
-            style={inputStyle}
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Dark Mode"
           />
         </div>
 
@@ -365,13 +418,35 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
         {/* targeting user IDs */}
         <div style={{ ...fieldStyle, borderTop: '1px solid #f3f4f6', paddingTop: 16 }}>
           <label style={labelStyle}>Targeting — User IDs</label>
-          <input
-            style={inputStyle}
-            value={form.targetingUserIds}
-            onChange={e => setForm(f => ({ ...f, targetingUserIds: e.target.value }))}
-            placeholder="user-1, user-2, user-3"
-          />
-          <p style={{ fontSize: 11, color: '#4b5563', marginTop: 4 }}>Comma-separated user IDs</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, minHeight: 38, alignItems: 'center' }}>
+            {form.targetingUserIds.map(uid => (
+              <span key={uid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e0e7ff', color: '#3730a3', fontSize: 12, fontWeight: 500, padding: '2px 8px', borderRadius: 999 }}>
+                {uid}
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, targetingUserIds: f.targetingUserIds.filter(u => u !== uid) }))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3730a3', fontSize: 14, lineHeight: 1, padding: 0 }}
+                >×</button>
+              </span>
+            ))}
+            <input
+              style={{ border: 'none', outline: 'none', fontSize: 13, flex: 1, minWidth: 120, padding: '2px 0' }}
+              value={form.targetingUserIdInput}
+              onChange={e => setForm(f => ({ ...f, targetingUserIdInput: e.target.value }))}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && form.targetingUserIdInput.trim()) {
+                  e.preventDefault();
+                  const val = form.targetingUserIdInput.trim();
+                  if (!form.targetingUserIds.includes(val)) {
+                    setForm(f => ({ ...f, targetingUserIds: [...f.targetingUserIds, val], targetingUserIdInput: '' }));
+                  }
+                } else if (e.key === 'Backspace' && !form.targetingUserIdInput && form.targetingUserIds.length > 0) {
+                  setForm(f => ({ ...f, targetingUserIds: f.targetingUserIds.slice(0, -1) }));
+                }
+              }}
+              placeholder={form.targetingUserIds.length === 0 ? 'Type and press Enter' : ''}
+            />
+          </div>
         </div>
 
         {/* targeting attributes */}
@@ -432,6 +507,66 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
             placeholder="e.g. 50"
           />
           <p style={{ fontSize: 11, color: '#4b5563', marginTop: 4 }}>Leave empty to disable rollout</p>
+          <p style={{ fontSize: 11, color: '#4b5563', marginTop: 8 }}>Evaluation order: User IDs → Attributes → Rollout → Enabled value</p>
+        </div>
+
+        {/* preview */}
+        <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16, marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(v => !v)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <span style={{ fontSize: 11 }}>{previewOpen ? '▼' : '▶'}</span> Test this flag
+          </button>
+
+          {previewOpen && (
+            <div style={{ marginTop: 12, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ ...labelStyle, fontSize: 12 }}>userId</label>
+                <input
+                  style={{ ...inputStyle, fontSize: 13, padding: '5px 10px' }}
+                  value={previewUserId}
+                  onChange={e => setPreviewUserId(e.target.value)}
+                  placeholder="e.g. ale123"
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ ...labelStyle, fontSize: 12 }}>Attributes</label>
+                {previewAttrs.map((attr, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                    <input
+                      style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', flex: 1 }}
+                      value={attr.key}
+                      onChange={e => setPreviewAttrs(prev => prev.map((a, j) => j === i ? { ...a, key: e.target.value } : a))}
+                      placeholder="key"
+                    />
+                    <input
+                      style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', flex: 1 }}
+                      value={attr.value}
+                      onChange={e => {
+                        const updated = previewAttrs.map((a, j) => j === i ? { ...a, value: e.target.value } : a);
+                        if (i === previewAttrs.length - 1 && e.target.value) updated.push({ key: '', value: '' });
+                        setPreviewAttrs(updated);
+                      }}
+                      placeholder="value"
+                    />
+                  </div>
+                ))}
+              </div>
+              {(() => {
+                const result = evaluateFlag(form, previewUserId, previewAttrs);
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                    <span style={{ color: '#4b5563' }}>→ Result:</span>
+                    <span style={{ color: result ? '#065f46' : '#991b1b', background: result ? '#d1fae5' : '#fee2e2', padding: '2px 10px', borderRadius: 999 }}>
+                      {result ? 'true' : 'false'}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
 
         {/* actions */}
