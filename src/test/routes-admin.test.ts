@@ -313,6 +313,30 @@ describe('Admin Routes', () => {
     });
   });
 
+  describe('GET /admin/api-keys?projectId= filters by projectId', () => {
+    it('should return only keys matching the given projectId', async () => {
+      await storage.createApiKey({
+        key: 'rf_projectakey111',
+        name: 'Project A Key',
+        environment: 'production',
+        projectId: 'project-a',
+      });
+      await storage.createApiKey({
+        key: 'rf_projectbkey222',
+        name: 'Project B Key',
+        environment: 'production',
+        projectId: 'project-b',
+      });
+
+      const response = await request(app).get('/admin/api-keys?projectId=project-a');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].name).toBe('Project A Key');
+      expect(response.body.every((k: { projectId: string }) => k.projectId === 'project-a')).toBe(true);
+    });
+  });
+
   describe('Integration scenarios', () => {
     it('should create, list, and delete API keys in sequence', async () => {
       // Create
