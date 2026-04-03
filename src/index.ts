@@ -15,6 +15,7 @@ import { createFlagsRouter } from './routes/flags.js';
 import { createEvaluateRouter } from './routes/evaluate.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createProjectsRouter } from './routes/projects.js';
 import { nanoid } from 'nanoid';
 
 dotenv.config();
@@ -53,7 +54,8 @@ async function bootstrapUiAdminKey(storage: Storage): Promise<void> {
     await storage.createApiKey({
       key: `rf_${nanoid(32)}`,
       name: '__ui_admin__',
-      environment: '__admin__'
+      environment: '__admin__',
+      projectId: '__admin__'
     });
     console.log('✓ UI admin key created');
   }
@@ -98,6 +100,7 @@ async function main() {
 
   app.use('/auth', createAuthRouter(sessions));
   app.use('/admin', requireAdminSession(sessions), createAdminRouter(storage));
+  app.use('/admin', requireAdminSession(sessions), createProjectsRouter(storage));
   app.use('/api/flags', authMiddleware, createFlagsRouter(storage));
   app.use('/api/evaluate', authMiddleware, createEvaluateRouter(storage, evaluator));
 
