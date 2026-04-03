@@ -97,6 +97,18 @@ export class SqliteStorage implements Storage {
     const id = nanoid();
     const now = new Date().toISOString();
     this.db.prepare('INSERT INTO environments (id, project_id, name, created_at) VALUES (?, ?, ?, ?)').run(id, env.projectId, env.name, now);
+
+    // Auto-backfill: for each unique flag key in this project, insert a row for the new environment
+    const existingFlags = this.db.prepare(
+      'SELECT key, name, description, targeting, rollout FROM flags WHERE project_id = ? AND environment != ? GROUP BY key'
+    ).all(env.projectId, env.name) as any[];
+    for (const flag of existingFlags) {
+      const flagId = nanoid();
+      this.db.prepare(
+        'INSERT OR IGNORE INTO flags (id, project_id, key, name, description, enabled, environment, targeting, rollout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(flagId, env.projectId, flag.key, flag.name, flag.description ?? null, 0, env.name, flag.targeting ?? null, flag.rollout ?? null, now, now);
+    }
+
     return { id, projectId: env.projectId, name: env.name, createdAt: now };
   }
 

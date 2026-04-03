@@ -59,8 +59,22 @@ export class JsonStorage implements Storage {
     if (this.data.environments.some(e => e.projectId === env.projectId && e.name === env.name)) {
       throw new Error(`Environment '${env.name}' already exists in this project`);
     }
-    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, createdAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, createdAt: now };
     this.data.environments.push(newEnv);
+
+    // Auto-backfill: for each unique flag key in this project, insert a row for the new environment
+    const seenKeys = new Set<string>();
+    const existingFlags = this.data.flags.filter(f => f.projectId === env.projectId && f.environment !== env.name);
+    for (const flag of existingFlags) {
+      if (seenKeys.has(flag.key)) continue;
+      seenKeys.add(flag.key);
+      const alreadyExists = this.data.flags.some(f => f.projectId === env.projectId && f.key === flag.key && f.environment === env.name);
+      if (!alreadyExists) {
+        this.data.flags.push({ id: nanoid(), projectId: env.projectId, key: flag.key, name: flag.name, description: flag.description, enabled: false, environment: env.name, targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
+      }
+    }
+
     this.save();
     return newEnv;
   }
