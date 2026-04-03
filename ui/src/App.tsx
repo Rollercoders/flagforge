@@ -155,7 +155,7 @@ export default function App() {
 
         <main style={{ flex: 1, marginLeft: 220, minHeight: '100vh' }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/flags" replace />} />
+            <Route path="/" element={<Navigate to="/projects" replace />} />
             <Route path="/flags" element={<FlagsPage projectId={project?.id ?? ''} projectName={project?.name ?? ''} environment={environment} />} />
 <Route path="/projects" element={<ProjectsPage onProjectsChange={refreshProjects} onSelectEnvironment={selectEnvironment} />} />
           </Routes>

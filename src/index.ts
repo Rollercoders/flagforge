@@ -20,7 +20,7 @@ import { nanoid } from 'nanoid';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 6789;
 const STORAGE_TYPE = process.env.STORAGE_TYPE || 'sqlite';
 const STORAGE_PATH = process.env.STORAGE_PATH || './data/flagforge.db';
 
