@@ -20,7 +20,10 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 4,
 };
 
-export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
+export function ApiKeysPage({ projectId, environments }: {
+  projectId: string;
+  environments: string[];
+}) {
   const { showToast } = useToast();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,17 +33,22 @@ export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  useEffect(() => {
+    setNewEnv(environments[0] ?? '');
+  }, [environments]);
+
   const loadKeys = useCallback(async () => {
+    if (!projectId) { setApiKeys([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const keys = await getApiKeys();
+      const keys = await getApiKeys(projectId);
       setApiKeys(keys.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     } catch {
       showToast('Failed to load API keys', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [projectId, showToast]);
 
   useEffect(() => {
     void loadKeys();
@@ -50,13 +58,11 @@ export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
     if (!newName || !newEnv) return;
     setSaving(true);
     try {
-      await createApiKey(newName, newEnv);
+      await createApiKey(newName, newEnv, projectId);
       showToast('API key created');
       setModalOpen(false);
       setNewName('');
-      setNewEnv('');
       await loadKeys();
-      onKeysChange?.();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create API key', 'error');
     } finally {
@@ -70,7 +76,6 @@ export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
       showToast('API key deleted');
       setConfirmDeleteId(null);
       await loadKeys();
-      onKeysChange?.();
     } catch {
       showToast('Failed to delete API key', 'error');
     }
@@ -297,27 +302,31 @@ export function ApiKeysPage({ onKeysChange }: { onKeysChange?: () => void }) {
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={labelStyle}>Environment *</label>
-              <input
+              <select
                 style={inputStyle}
                 value={newEnv}
                 onChange={e => setNewEnv(e.target.value)}
-                placeholder="e.g. production"
-              />
+              >
+                {environments.length === 0
+                  ? <option value="">No environments</option>
+                  : environments.map(env => <option key={env} value={env}>{env}</option>)
+                }
+              </select>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => void handleCreate()}
-                disabled={saving || !newName || !newEnv}
+                disabled={saving || !newName || !newEnv || !projectId}
                 style={{
                   flex: 1,
                   padding: '10px',
-                  background: saving || !newName || !newEnv ? '#93c5fd' : '#3b82f6',
+                  background: saving || !newName || !newEnv || !projectId ? '#93c5fd' : '#3b82f6',
                   color: 'white',
                   border: 'none',
                   borderRadius: 6,
                   fontSize: 14,
                   fontWeight: 500,
-                  cursor: saving || !newName || !newEnv ? 'not-allowed' : 'pointer',
+                  cursor: saving || !newName || !newEnv || !projectId ? 'not-allowed' : 'pointer',
                 }}
               >
                 {saving ? 'Creating...' : 'Create'}
