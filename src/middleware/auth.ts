@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Storage } from '../types';
+import { Storage } from '../types.js';
 
 export interface AuthRequest extends Request {
   apiKey?: {
@@ -13,29 +13,18 @@ export interface AuthRequest extends Request {
 export function createAuthMiddleware(storage: Storage) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({ error: 'Missing or invalid authorization header' });
       return;
     }
-
     const token = authHeader.substring(7);
-
     try {
-      const apiKey = await storage.getApiKey(token);
-
-      if (!apiKey) {
+      const env = await storage.getEnvironmentByKey(token);
+      if (!env) {
         res.status(401).json({ error: 'Invalid API key' });
         return;
       }
-
-      req.apiKey = {
-        id: apiKey.id,
-        name: apiKey.name,
-        projectId: apiKey.projectId,
-        environment: apiKey.environment,
-      };
-
+      req.apiKey = { id: env.id, name: env.name, projectId: env.projectId, environment: env.name };
       next();
     } catch (_error) {
       res.status(500).json({ error: 'Authentication error' });

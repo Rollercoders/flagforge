@@ -8,6 +8,7 @@ export interface Environment {
   id: string;
   projectId: string;
   name: string;
+  key: string;
   createdAt: string;
 }
 
@@ -34,15 +35,6 @@ export interface Rollout {
   percentage: number;
 }
 
-export interface ApiKey {
-  id: string;
-  projectId: string;
-  key: string;
-  name: string;
-  environment: string;
-  createdAt: string;
-}
-
 export interface FlagEvaluationContext {
   userId?: string;
   attributes?: Record<string, string>;
@@ -58,10 +50,12 @@ export interface Storage {
   deleteProject(id: string): Promise<void>;
 
   // Environments
-  createEnvironment(env: Omit<Environment, 'id' | 'createdAt'>): Promise<Environment>;
+  createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment>;
   getEnvironmentsByProject(projectId: string): Promise<Environment[]>;
   deleteEnvironment(id: string): Promise<void>;
   renameEnvironment(id: string, name: string): Promise<Environment>;
+  regenerateEnvironmentKey(envId: string): Promise<Environment>;
+  getEnvironmentByKey(key: string): Promise<Environment | null>;
 
   // Flags
   createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]>;
@@ -70,9 +64,7 @@ export interface Storage {
   updateFlag(id: string, updates: Partial<Flag>): Promise<Flag>;
   deleteFlag(projectId: string, key: string): Promise<void>;
 
-  // API Keys
-  createApiKey(apiKey: Omit<ApiKey, 'id' | 'createdAt'>): Promise<ApiKey>;
-  getApiKey(key: string): Promise<ApiKey | null>;
-  getAllApiKeys(projectId?: string): Promise<ApiKey[]>;
-  deleteApiKey(id: string): Promise<void>;
+  // Admin key (UI authentication)
+  getAdminKey(): Promise<string | null>;
+  bootstrapAdminKey(): Promise<void>;
 }

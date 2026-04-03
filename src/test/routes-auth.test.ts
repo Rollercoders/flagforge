@@ -182,6 +182,7 @@ describe('Admin route protection', () => {
 
     const storage = new SqliteStorage(testDbPath);
     await storage.initialize();
+    await storage.bootstrapAdminKey();
 
     appWithAdmin = express();
     appWithAdmin.use(express.json());
@@ -195,7 +196,7 @@ describe('Admin route protection', () => {
   });
 
   it('returns 401 on /admin without session', async () => {
-    const res = await request(appWithAdmin).get('/admin/api-keys');
+    const res = await request(appWithAdmin).get('/admin/ui-token');
     expect(res.status).toBe(401);
   });
 
@@ -206,7 +207,7 @@ describe('Admin route protection', () => {
     const cookie = (loginRes.headers['set-cookie'] as unknown as string[])[0];
 
     const res = await request(appWithAdmin)
-      .get('/admin/api-keys')
+      .get('/admin/ui-token')
       .set('Cookie', cookie);
     expect(res.status).toBe(200);
   });

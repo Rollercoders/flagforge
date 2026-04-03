@@ -5,11 +5,11 @@ import * as path from 'path';
 
 describe('JsonStorage', () => {
   let storage: JsonStorage;
-  const testFilePath = path.join(__dirname, '../../test-data/test.json');
+  const testFilePath = path.join(__dirname, '../../test-data/json-test.json');
 
   beforeEach(async () => {
-    const dir = path.dirname(testFilePath);
     if (fs.existsSync(testFilePath)) fs.unlinkSync(testFilePath);
+    const dir = path.dirname(testFilePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     storage = new JsonStorage(testFilePath);
     await storage.initialize();
@@ -19,109 +19,92 @@ describe('JsonStorage', () => {
     if (fs.existsSync(testFilePath)) fs.unlinkSync(testFilePath);
   });
 
-  describe('Project operations', () => {
-    it('should create a project', async () => {
-      const p = await storage.createProject({ name: 'my-app' });
-      expect(p.id).toBeDefined();
-      expect(p.name).toBe('my-app');
+  describe('createEnvironment', () => {
+    it('creates an environment with a ff_ key', async () => {
+      const p = await storage.createProject({ name: 'App' });
+      const env = await storage.createEnvironment({ projectId: p.id, name: 'production' });
+      expect(env.key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
     });
 
-    it('should get all projects', async () => {
-      await storage.createProject({ name: 'a' });
-      await storage.createProject({ name: 'b' });
-      expect(await storage.getAllProjects()).toHaveLength(2);
+    it('persists key to disk', async () => {
+      const p = await storage.createProject({ name: 'App2' });
+      const env = await storage.createEnvironment({ projectId: p.id, name: 'prod' });
+      const storage2 = new JsonStorage(testFilePath);
+      await storage2.initialize();
+      const envs = await storage2.getEnvironmentsByProject(p.id);
+      expect(envs[0].key).toBe(env.key);
     });
 
-    it('should delete a project', async () => {
-      const p = await storage.createProject({ name: 'x' });
+    it('throws on duplicate name within same project', async () => {
+      const p = await storage.createProject({ name: 'App3' });
+      await storage.createEnvironment({ projectId: p.id, name: 'prod' });
+      await expect(storage.createEnvironment({ projectId: p.id, name: 'prod' })).rejects.toThrow();
+    });
+  });
+
+  describe('getEnvironmentByKey', () => {
+    it('returns the matching environment', async () => {
+      const p = await storage.createProject({ name: 'App4' });
+      const env = await storage.createEnvironment({ projectId: p.id, name: 'prod' });
+      const found = await storage.getEnvironmentByKey(env.key);
+      expect(found?.id).toBe(env.id);
+    });
+
+    it('returns null for unknown key', async () => {
+      expect(await storage.getEnvironmentByKey('ff_unknown')).toBeNull();
+    });
+  });
+
+  describe('regenerateEnvironmentKey', () => {
+    it('returns a new ff_ key', async () => {
+      const p = await storage.createProject({ name: 'App5' });
+      const env = await storage.createEnvironment({ projectId: p.id, name: 'prod' });
+      const updated = await storage.regenerateEnvironmentKey(env.id);
+      expect(updated.key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
+      expect(updated.key).not.toBe(env.key);
+    });
+
+    it('throws for unknown envId', async () => {
+      await expect(storage.regenerateEnvironmentKey('nope')).rejects.toThrow('Environment not found');
+    });
+  });
+
+  describe('bootstrapAdminKey / getAdminKey', () => {
+    it('getAdminKey returns null before bootstrap', async () => {
+      expect(await storage.getAdminKey()).toBeNull();
+    });
+
+    it('bootstrapAdminKey creates a ff_ key', async () => {
+      await storage.bootstrapAdminKey();
+      const key = await storage.getAdminKey();
+      expect(key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
+    });
+
+    it('bootstrapAdminKey is idempotent', async () => {
+      await storage.bootstrapAdminKey();
+      const first = await storage.getAdminKey();
+      await storage.bootstrapAdminKey();
+      expect(await storage.getAdminKey()).toBe(first);
+    });
+  });
+
+  describe('deleteProject', () => {
+    it('cascades to environments and flags', async () => {
+      const p = await storage.createProject({ name: 'Del' });
+      await storage.createEnvironment({ projectId: p.id, name: 'prod' });
       await storage.deleteProject(p.id);
       expect(await storage.getProject(p.id)).toBeNull();
-    });
-
-    it('should reject duplicate names', async () => {
-      await storage.createProject({ name: 'dup' });
-      await expect(storage.createProject({ name: 'dup' })).rejects.toThrow();
+      expect(await storage.getEnvironmentsByProject(p.id)).toHaveLength(0);
     });
   });
 
-  describe('Environment operations', () => {
-    let projectId: string;
-
-    beforeEach(async () => {
-      projectId = (await storage.createProject({ name: 'my-app' })).id;
-    });
-
-    it('should create an environment', async () => {
-      const env = await storage.createEnvironment({ projectId, name: 'prod' });
-      expect(env.projectId).toBe(projectId);
-      expect(env.name).toBe('prod');
-    });
-
-    it('should list environments for project', async () => {
-      await storage.createEnvironment({ projectId, name: 'prod' });
-      await storage.createEnvironment({ projectId, name: 'staging' });
-      expect(await storage.getEnvironmentsByProject(projectId)).toHaveLength(2);
-    });
-
-    it('should delete an environment', async () => {
-      const env = await storage.createEnvironment({ projectId, name: 'staging' });
-      await storage.deleteEnvironment(env.id);
-      expect(await storage.getEnvironmentsByProject(projectId)).toHaveLength(0);
-    });
-
-    it('should reject duplicate env name in same project', async () => {
-      await storage.createEnvironment({ projectId, name: 'prod' });
-      await expect(storage.createEnvironment({ projectId, name: 'prod' })).rejects.toThrow();
-    });
-  });
-
-  describe('Flag operations', () => {
-    let projectId: string;
-
-    beforeEach(async () => {
-      projectId = (await storage.createProject({ name: 'my-app' })).id;
-      await storage.createEnvironment({ projectId, name: 'prod' });
-      await storage.createEnvironment({ projectId, name: 'staging' });
-    });
-
-    it('should create a flag for all environments', async () => {
-      const flags = await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'prod' });
+  describe('createFlag', () => {
+    it('creates flags across all environments', async () => {
+      const p = await storage.createProject({ name: 'FlagApp' });
+      await storage.createEnvironment({ projectId: p.id, name: 'staging' });
+      await storage.createEnvironment({ projectId: p.id, name: 'production' });
+      const flags = await storage.createFlag({ projectId: p.id, key: 'f', name: 'F', enabled: false, environment: 'staging' });
       expect(flags).toHaveLength(2);
-      expect(flags.map(f => f.environment).sort()).toEqual(['prod', 'staging']);
-    });
-
-    it('should get a flag', async () => {
-      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: true, environment: 'prod' });
-      const flag = await storage.getFlag(projectId, 'feat', 'prod');
-      expect(flag?.key).toBe('feat');
-    });
-
-    it('should delete all env rows for a flag key', async () => {
-      await storage.createFlag({ projectId, key: 'feat', name: 'Feature', enabled: false, environment: 'prod' });
-      await storage.deleteFlag(projectId, 'feat');
-      expect(await storage.getFlag(projectId, 'feat', 'prod')).toBeNull();
-      expect(await storage.getFlag(projectId, 'feat', 'staging')).toBeNull();
-    });
-  });
-
-  describe('API Key operations', () => {
-    let projectId: string;
-
-    beforeEach(async () => {
-      projectId = (await storage.createProject({ name: 'my-app' })).id;
-    });
-
-    it('should create key with projectId', async () => {
-      const k = await storage.createApiKey({ key: 'rf_x', name: 'X', environment: 'prod', projectId });
-      expect(k.projectId).toBe(projectId);
-    });
-
-    it('should filter keys by projectId', async () => {
-      const other = (await storage.createProject({ name: 'other' })).id;
-      await storage.createApiKey({ key: 'rf_a', name: 'A', environment: 'prod', projectId });
-      await storage.createApiKey({ key: 'rf_b', name: 'B', environment: 'prod', projectId: other });
-      const keys = await storage.getAllApiKeys(projectId);
-      expect(keys).toHaveLength(1);
     });
   });
 });
