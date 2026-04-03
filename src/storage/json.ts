@@ -1,17 +1,24 @@
 import { nanoid } from 'nanoid';
-import { Storage, Flag, ApiKey, Project, Environment } from '../types';
+import { Storage, Flag, Project, Environment } from '../types.js';
 import * as fs from 'fs';
 import * as path from 'path';
+
+interface AdminKey {
+  id: string;
+  key: string;
+  name: string;
+  createdAt: string;
+}
 
 interface JsonData {
   projects: Project[];
   environments: Environment[];
   flags: Flag[];
-  apiKeys: ApiKey[];
+  adminKey: AdminKey | null;
 }
 
 export class JsonStorage implements Storage {
-  private data: JsonData = { projects: [], environments: [], flags: [], apiKeys: [] };
+  private data: JsonData = { projects: [], environments: [], flags: [], adminKey: null };
 
   constructor(private filePath: string) {}
 
@@ -19,7 +26,8 @@ export class JsonStorage implements Storage {
     const dir = path.dirname(this.filePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (fs.existsSync(this.filePath)) {
-      this.data = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
+      this.data = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')) as JsonData;
+      if (!('adminKey' in this.data)) (this.data as any).adminKey = null;
     } else {
       this.save();
     }
@@ -48,46 +56,56 @@ export class JsonStorage implements Storage {
   }
 
   async deleteProject(id: string): Promise<void> {
-    this.data.apiKeys = this.data.apiKeys.filter(k => k.projectId !== id);
     this.data.flags = this.data.flags.filter(f => f.projectId !== id);
     this.data.environments = this.data.environments.filter(e => e.projectId !== id);
     this.data.projects = this.data.projects.filter(p => p.id !== id);
     this.save();
   }
 
-  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt'>): Promise<Environment> {
+  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment> {
     if (this.data.environments.some(e => e.projectId === env.projectId && e.name === env.name)) {
       throw new Error(`Environment '${env.name}' already exists in this project`);
     }
     const now = new Date().toISOString();
-    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, createdAt: now };
+    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, key: `ff_${nanoid(32)}`, createdAt: now };
     this.data.environments.push(newEnv);
 
-    // Auto-backfill: for each unique flag key in this project, insert a row for the new environment
+    // Auto-backfill flags
     const seenKeys = new Set<string>();
-    const existingFlags = this.data.flags.filter(f => f.projectId === env.projectId && f.environment !== env.name);
-    for (const flag of existingFlags) {
+    for (const flag of this.data.flags.filter(f => f.projectId === env.projectId && f.environment !== env.name)) {
       if (seenKeys.has(flag.key)) continue;
       seenKeys.add(flag.key);
-      const alreadyExists = this.data.flags.some(f => f.projectId === env.projectId && f.key === flag.key && f.environment === env.name);
-      if (!alreadyExists) {
-        this.data.flags.push({ id: nanoid(), projectId: env.projectId, key: flag.key, name: flag.name, description: flag.description, enabled: false, environment: env.name, targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
+      if (!this.data.flags.some(f => f.projectId === env.projectId && f.key === flag.key && f.environment === env.name)) {
+        this.data.flags.push({ id: nanoid(), projectId: env.projectId, key: flag.key, name: flag.name,
+          description: flag.description, enabled: false, environment: env.name,
+          targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
       }
     }
 
     this.save();
-    return newEnv;
+    return { ...newEnv };
   }
 
   async getEnvironmentsByProject(projectId: string): Promise<Environment[]> {
     return this.data.environments.filter(e => e.projectId === projectId);
   }
 
+  async getEnvironmentByKey(key: string): Promise<Environment | null> {
+    return this.data.environments.find(e => e.key === key) ?? null;
+  }
+
+  async regenerateEnvironmentKey(envId: string): Promise<Environment> {
+    const env = this.data.environments.find(e => e.id === envId);
+    if (!env) throw new Error('Environment not found');
+    env.key = `ff_${nanoid(32)}`;
+    this.save();
+    return { ...env };
+  }
+
   async deleteEnvironment(id: string): Promise<void> {
     const env = this.data.environments.find(e => e.id === id);
     if (!env) return;
     this.data.flags = this.data.flags.filter(f => !(f.projectId === env.projectId && f.environment === env.name));
-    this.data.apiKeys = this.data.apiKeys.filter(k => !(k.projectId === env.projectId && k.environment === env.name));
     this.data.environments = this.data.environments.filter(e => e.id !== id);
     this.save();
   }
@@ -103,29 +121,34 @@ export class JsonStorage implements Storage {
     for (const flag of this.data.flags) {
       if (flag.projectId === env.projectId && flag.environment === oldName) flag.environment = name;
     }
-    for (const key of this.data.apiKeys) {
-      if (key.projectId === env.projectId && key.environment === oldName) key.environment = name;
-    }
     this.save();
     return { ...env };
   }
 
-  async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
-    const envNames = this.data.environments
-      .filter(e => e.projectId === flag.projectId)
-      .map(e => e.name);
-    if (envNames.length === 0) envNames.push(flag.environment);
+  async getAdminKey(): Promise<string | null> {
+    return this.data.adminKey?.key ?? null;
+  }
 
+  async bootstrapAdminKey(): Promise<void> {
+    if (this.data.adminKey) return;
+    this.data.adminKey = { id: nanoid(), key: `ff_${nanoid(32)}`, name: '__ui_admin__', createdAt: new Date().toISOString() };
+    this.save();
+  }
+
+  async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
+    const envNames = this.data.environments.filter(e => e.projectId === flag.projectId).map(e => e.name);
+    if (envNames.length === 0) envNames.push(flag.environment);
     for (const envName of envNames) {
       if (this.data.flags.some(f => f.projectId === flag.projectId && f.key === flag.key && f.environment === envName)) {
         throw new Error(`Flag '${flag.key}' already exists in environment '${envName}'`);
       }
     }
-
     const now = new Date().toISOString();
     const created: Flag[] = [];
     for (const envName of envNames) {
-      const newFlag: Flag = { id: nanoid(), projectId: flag.projectId, key: flag.key, name: flag.name, description: flag.description, enabled: flag.enabled, environment: envName, targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now };
+      const newFlag: Flag = { id: nanoid(), projectId: flag.projectId, key: flag.key, name: flag.name,
+        description: flag.description, enabled: flag.enabled, environment: envName,
+        targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now };
       this.data.flags.push(newFlag);
       created.push(newFlag);
     }
@@ -152,27 +175,6 @@ export class JsonStorage implements Storage {
 
   async deleteFlag(projectId: string, key: string): Promise<void> {
     this.data.flags = this.data.flags.filter(f => !(f.projectId === projectId && f.key === key));
-    this.save();
-  }
-
-  async createApiKey(apiKey: Omit<ApiKey, 'id' | 'createdAt'>): Promise<ApiKey> {
-    const newKey: ApiKey = { id: nanoid(), ...apiKey, createdAt: new Date().toISOString() };
-    this.data.apiKeys.push(newKey);
-    this.save();
-    return newKey;
-  }
-
-  async getApiKey(key: string): Promise<ApiKey | null> {
-    return this.data.apiKeys.find(k => k.key === key) ?? null;
-  }
-
-  async getAllApiKeys(projectId?: string): Promise<ApiKey[]> {
-    if (projectId) return this.data.apiKeys.filter(k => k.projectId === projectId);
-    return [...this.data.apiKeys];
-  }
-
-  async deleteApiKey(id: string): Promise<void> {
-    this.data.apiKeys = this.data.apiKeys.filter(k => k.id !== id);
     this.save();
   }
 }

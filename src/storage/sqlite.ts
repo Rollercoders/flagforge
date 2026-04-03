@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
-import { Storage, Flag, ApiKey, Project, Environment } from '../types';
+import { Storage, Flag, Project, Environment } from '../types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,12 +11,8 @@ export class SqliteStorage implements Storage {
 
   async initialize(): Promise<void> {
     const dir = path.dirname(this.dbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     this.db = new Database(this.dbPath);
-
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
@@ -28,6 +24,7 @@ export class SqliteStorage implements Storage {
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL REFERENCES projects(id),
         name TEXT NOT NULL,
+        key TEXT UNIQUE NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         UNIQUE(project_id, name)
       );
@@ -47,20 +44,17 @@ export class SqliteStorage implements Storage {
         UNIQUE(project_id, key, environment)
       );
 
-      CREATE TABLE IF NOT EXISTS api_keys (
+      CREATE TABLE IF NOT EXISTS admin_keys (
         id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL DEFAULT '',
         key TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
-        environment TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_flags_project_key_env ON flags(project_id, key, environment);
       CREATE INDEX IF NOT EXISTS idx_flags_project_env ON flags(project_id, environment);
-      CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key);
-      CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
       CREATE INDEX IF NOT EXISTS idx_environments_project ON environments(project_id);
+      CREATE INDEX IF NOT EXISTS idx_environments_key ON environments(key);
     `);
   }
 
@@ -88,20 +82,20 @@ export class SqliteStorage implements Storage {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db;
     db.transaction(() => {
-      db.prepare('DELETE FROM api_keys WHERE project_id = ?').run(id);
       db.prepare('DELETE FROM flags WHERE project_id = ?').run(id);
       db.prepare('DELETE FROM environments WHERE project_id = ?').run(id);
       db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     })();
   }
 
-  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt'>): Promise<Environment> {
+  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment> {
     if (!this.db) throw new Error('Database not initialized');
     const id = nanoid();
+    const key = `ff_${nanoid(32)}`;
     const now = new Date().toISOString();
-    this.db.prepare('INSERT INTO environments (id, project_id, name, created_at) VALUES (?, ?, ?, ?)').run(id, env.projectId, env.name, now);
+    this.db.prepare('INSERT INTO environments (id, project_id, name, key, created_at) VALUES (?, ?, ?, ?, ?)').run(id, env.projectId, env.name, key, now);
 
-    // Auto-backfill: for each unique flag key in this project, insert a row for the new environment
+    // Auto-backfill: copy existing flag keys into the new environment
     const existingFlags = this.db.prepare(
       'SELECT key, name, description, targeting, rollout FROM flags WHERE project_id = ? AND environment != ? GROUP BY key'
     ).all(env.projectId, env.name) as any[];
@@ -112,13 +106,28 @@ export class SqliteStorage implements Storage {
       ).run(flagId, env.projectId, flag.key, flag.name, flag.description ?? null, 0, env.name, flag.targeting ?? null, flag.rollout ?? null, now, now);
     }
 
-    return { id, projectId: env.projectId, name: env.name, createdAt: now };
+    return { id, projectId: env.projectId, name: env.name, key, createdAt: now };
   }
 
   async getEnvironmentsByProject(projectId: string): Promise<Environment[]> {
     if (!this.db) throw new Error('Database not initialized');
     const rows = this.db.prepare('SELECT * FROM environments WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as any[];
-    return rows.map(r => ({ id: r.id, projectId: r.project_id, name: r.name, createdAt: r.created_at }));
+    return rows.map(r => this.rowToEnvironment(r));
+  }
+
+  async getEnvironmentByKey(key: string): Promise<Environment | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = this.db.prepare('SELECT * FROM environments WHERE key = ?').get(key) as any;
+    return row ? this.rowToEnvironment(row) : null;
+  }
+
+  async regenerateEnvironmentKey(envId: string): Promise<Environment> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = this.db.prepare('SELECT * FROM environments WHERE id = ?').get(envId) as any;
+    if (!row) throw new Error('Environment not found');
+    const newKey = `ff_${nanoid(32)}`;
+    this.db.prepare('UPDATE environments SET key = ? WHERE id = ?').run(newKey, envId);
+    return this.rowToEnvironment({ ...row, key: newKey });
   }
 
   async deleteEnvironment(id: string): Promise<void> {
@@ -126,7 +135,6 @@ export class SqliteStorage implements Storage {
     const row = this.db.prepare('SELECT * FROM environments WHERE id = ?').get(id) as any;
     if (!row) return;
     this.db.prepare('DELETE FROM flags WHERE project_id = ? AND environment = ?').run(row.project_id, row.name);
-    this.db.prepare('DELETE FROM api_keys WHERE project_id = ? AND environment = ?').run(row.project_id, row.name);
     this.db.prepare('DELETE FROM environments WHERE id = ?').run(id);
   }
 
@@ -140,15 +148,29 @@ export class SqliteStorage implements Storage {
     db.transaction(() => {
       db.prepare('UPDATE environments SET name = ? WHERE id = ?').run(name, id);
       db.prepare('UPDATE flags SET environment = ?, updated_at = ? WHERE project_id = ? AND environment = ?').run(name, now, row.project_id, oldName);
-      db.prepare('UPDATE api_keys SET environment = ? WHERE project_id = ? AND environment = ?').run(name, row.project_id, oldName);
     })();
     const updated = db.prepare('SELECT * FROM environments WHERE id = ?').get(id) as any;
-    return { id: updated.id, projectId: updated.project_id, name: updated.name, createdAt: updated.created_at };
+    return this.rowToEnvironment(updated);
+  }
+
+  async getAdminKey(): Promise<string | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = this.db.prepare('SELECT key FROM admin_keys LIMIT 1').get() as any;
+    return row ? row.key : null;
+  }
+
+  async bootstrapAdminKey(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const existing = this.db.prepare('SELECT id FROM admin_keys LIMIT 1').get();
+    if (existing) return;
+    const id = nanoid();
+    const key = `ff_${nanoid(32)}`;
+    const now = new Date().toISOString();
+    this.db.prepare('INSERT INTO admin_keys (id, key, name, created_at) VALUES (?, ?, ?, ?)').run(id, key, '__ui_admin__', now);
   }
 
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     if (!this.db) throw new Error('Database not initialized');
-
     const projectId = flag.projectId || '';
     const envRows = projectId
       ? (this.db.prepare('SELECT name FROM environments WHERE project_id = ?').all(projectId) as any[])
@@ -165,75 +187,42 @@ export class SqliteStorage implements Storage {
     const created: Flag[] = [];
     for (const envName of envNames) {
       const id = nanoid();
-      insert.run(
-        id,
-        projectId,
-        flag.key,
-        flag.name,
-        flag.description || null,
-        flag.enabled ? 1 : 0,
-        envName,
-        flag.targeting ? JSON.stringify(flag.targeting) : null,
-        flag.rollout ? JSON.stringify(flag.rollout) : null,
-        now,
-        now
-      );
-      created.push({
-        id,
-        projectId: flag.projectId,
-        key: flag.key,
-        name: flag.name,
-        description: flag.description,
-        enabled: flag.enabled,
-        environment: envName,
-        targeting: flag.targeting,
-        rollout: flag.rollout,
-        createdAt: now,
-        updatedAt: now,
-      });
+      insert.run(id, projectId, flag.key, flag.name, flag.description || null, flag.enabled ? 1 : 0, envName,
+        flag.targeting ? JSON.stringify(flag.targeting) : null, flag.rollout ? JSON.stringify(flag.rollout) : null, now, now);
+      created.push({ id, projectId: flag.projectId, key: flag.key, name: flag.name, description: flag.description,
+        enabled: flag.enabled, environment: envName, targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
     }
-
     return created;
   }
 
   async getFlag(projectId: string, key: string, environment: string): Promise<Flag | null> {
     if (!this.db) throw new Error('Database not initialized');
-    const pid = projectId || '';
-    const row = this.db.prepare('SELECT * FROM flags WHERE project_id = ? AND key = ? AND environment = ?').get(pid, key, environment) as any;
+    const row = this.db.prepare('SELECT * FROM flags WHERE project_id = ? AND key = ? AND environment = ?').get(projectId || '', key, environment) as any;
     return row ? this.rowToFlag(row) : null;
   }
 
   async getAllFlags(projectId: string, environment?: string): Promise<Flag[]> {
     if (!this.db) throw new Error('Database not initialized');
     const pid = projectId || '';
-    let rows: any[];
-    if (environment) {
-      rows = this.db.prepare('SELECT * FROM flags WHERE project_id = ? AND environment = ? ORDER BY created_at DESC').all(pid, environment) as any[];
-    } else {
-      rows = this.db.prepare('SELECT * FROM flags WHERE project_id = ? ORDER BY created_at DESC').all(pid) as any[];
-    }
+    const rows = environment
+      ? this.db.prepare('SELECT * FROM flags WHERE project_id = ? AND environment = ? ORDER BY created_at DESC').all(pid, environment) as any[]
+      : this.db.prepare('SELECT * FROM flags WHERE project_id = ? ORDER BY created_at DESC').all(pid) as any[];
     return rows.map(r => this.rowToFlag(r));
   }
 
   async updateFlag(id: string, updates: Partial<Flag>): Promise<Flag> {
     if (!this.db) throw new Error('Database not initialized');
-
     const now = new Date().toISOString();
     const fields: string[] = [];
     const values: any[] = [];
-
     if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
     if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
     if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled ? 1 : 0); }
     if (updates.targeting !== undefined) { fields.push('targeting = ?'); values.push(updates.targeting ? JSON.stringify(updates.targeting) : null); }
     if (updates.rollout !== undefined) { fields.push('rollout = ?'); values.push(updates.rollout ? JSON.stringify(updates.rollout) : null); }
-
     fields.push('updated_at = ?');
-    values.push(now);
-    values.push(id);
-
+    values.push(now, id);
     this.db.prepare(`UPDATE flags SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-
     const row = this.db.prepare('SELECT * FROM flags WHERE id = ?').get(id) as any;
     if (!row) throw new Error('Flag not found');
     return this.rowToFlag(row);
@@ -241,65 +230,20 @@ export class SqliteStorage implements Storage {
 
   async deleteFlag(projectId: string, key: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    const pid = projectId || '';
-    this.db.prepare('DELETE FROM flags WHERE project_id = ? AND key = ?').run(pid, key);
+    this.db.prepare('DELETE FROM flags WHERE project_id = ? AND key = ?').run(projectId || '', key);
   }
 
-  async createApiKey(apiKey: Omit<ApiKey, 'id' | 'createdAt'>): Promise<ApiKey> {
-    if (!this.db) throw new Error('Database not initialized');
-    const id = nanoid();
-    const now = new Date().toISOString();
-    const projectId = apiKey.projectId ?? '';
-    this.db.prepare('INSERT INTO api_keys (id, project_id, key, name, environment, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, projectId, apiKey.key, apiKey.name, apiKey.environment, now);
-    return { id, projectId: apiKey.projectId, key: apiKey.key, name: apiKey.name, environment: apiKey.environment, createdAt: now };
-  }
-
-  async getApiKey(key: string): Promise<ApiKey | null> {
-    if (!this.db) throw new Error('Database not initialized');
-    const row = this.db.prepare('SELECT * FROM api_keys WHERE key = ?').get(key) as any;
-    return row ? this.rowToApiKey(row) : null;
-  }
-
-  async getAllApiKeys(projectId?: string): Promise<ApiKey[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    let rows: any[];
-    if (projectId) {
-      rows = this.db.prepare('SELECT * FROM api_keys WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as any[];
-    } else {
-      rows = this.db.prepare('SELECT * FROM api_keys ORDER BY created_at DESC').all() as any[];
-    }
-    return rows.map(r => this.rowToApiKey(r));
-  }
-
-  async deleteApiKey(id: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.prepare('DELETE FROM api_keys WHERE id = ?').run(id);
+  private rowToEnvironment(row: any): Environment {
+    return { id: row.id, projectId: row.project_id, name: row.name, key: row.key, createdAt: row.created_at };
   }
 
   private rowToFlag(row: any): Flag {
     return {
-      id: row.id,
-      projectId: row.project_id,
-      key: row.key,
-      name: row.name,
-      description: row.description,
-      enabled: row.enabled === 1,
-      environment: row.environment,
+      id: row.id, projectId: row.project_id, key: row.key, name: row.name, description: row.description,
+      enabled: row.enabled === 1, environment: row.environment,
       targeting: row.targeting ? JSON.parse(row.targeting) : undefined,
       rollout: row.rollout ? JSON.parse(row.rollout) : undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
-  }
-
-  private rowToApiKey(row: any): ApiKey {
-    return {
-      id: row.id,
-      projectId: row.project_id,
-      key: row.key,
-      name: row.name,
-      environment: row.environment,
-      createdAt: row.created_at,
+      createdAt: row.created_at, updatedAt: row.updated_at,
     };
   }
 }

@@ -24,10 +24,8 @@ describe('Flags Routes', () => {
 
     const project = await storage.createProject({ name: 'test-project' });
     projectId = project.id;
-    await storage.createEnvironment({ projectId, name: 'test' });
-
-    const key = await storage.createApiKey({ key: 'test-api-key', name: 'Test Key', environment: 'test', projectId });
-    apiKey = key.key;
+    const env = await storage.createEnvironment({ projectId, name: 'test' });
+    apiKey = env.key;
 
     app = express();
     app.use(express.json());
@@ -179,11 +177,10 @@ describe('Flags Routes', () => {
     let projectBApiKey: string;
 
     beforeEach(async () => {
-      // Create a second project with its own environment and API key
+      // Create a second project with its own environment
       const projectB = await storage.createProject({ name: 'project-b' });
-      await storage.createEnvironment({ projectId: projectB.id, name: 'test' });
-      const keyB = await storage.createApiKey({ key: 'api-key-b', name: 'Project B Key', environment: 'test', projectId: projectB.id });
-      projectBApiKey = keyB.key;
+      const envB = await storage.createEnvironment({ projectId: projectB.id, name: 'test' });
+      projectBApiKey = envB.key;
 
       // Create a flag in project A
       await storage.createFlag({ projectId, key: 'project-a-flag', name: 'Project A Flag', enabled: true, environment: 'test' });
@@ -208,8 +205,8 @@ describe('Flags Routes', () => {
   describe('Multi-environment flag creation', () => {
     it('should create a flag visible in all environments of the project', async () => {
       // Create a second environment for the test project
-      await storage.createEnvironment({ projectId, name: 'staging' });
-      const stagingKey = await storage.createApiKey({ key: 'staging-api-key', name: 'Staging Key', environment: 'staging', projectId });
+      const stagingEnv = await storage.createEnvironment({ projectId, name: 'staging' });
+      const stagingApiKey = stagingEnv.key;
 
       // Create a flag via the API using the first environment's key
       const createResponse = await request(app)
@@ -224,7 +221,7 @@ describe('Flags Routes', () => {
       expect(testListResponse.body.find((f: any) => f.key === 'multi-env-flag')).toBeDefined();
 
       // Verify the flag also appears when listing with the 'staging' environment key
-      const stagingListResponse = await request(app).get('/api/flags').set('Authorization', `Bearer ${stagingKey.key}`);
+      const stagingListResponse = await request(app).get('/api/flags').set('Authorization', `Bearer ${stagingApiKey}`);
       expect(stagingListResponse.status).toBe(200);
       expect(stagingListResponse.body.find((f: any) => f.key === 'multi-env-flag')).toBeDefined();
     });

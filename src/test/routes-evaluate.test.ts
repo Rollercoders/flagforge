@@ -13,6 +13,7 @@ describe('Evaluate Routes', () => {
   let storage: SqliteStorage;
   let evaluator: FlagEvaluator;
   let apiKey: string;
+  let projectId: string;
   const testDbPath = path.join(__dirname, '../../test-data/evaluate-test.db');
 
   beforeEach(async () => {
@@ -30,14 +31,11 @@ describe('Evaluate Routes', () => {
 
     evaluator = new FlagEvaluator();
 
-    // Create API key for testing
-    const key = await storage.createApiKey({
-      key: 'test-api-key',
-      name: 'Test Key',
-      environment: 'test',
-      projectId: '__test__'
-    });
-    apiKey = key.key;
+    // Create project + environment for testing
+    const project = await storage.createProject({ name: 'test-project' });
+    projectId = project.id;
+    const env = await storage.createEnvironment({ projectId, name: 'test' });
+    apiKey = env.key;
 
     // Setup Express app
     app = express();
@@ -59,7 +57,7 @@ describe('Evaluate Routes', () => {
         name: 'Test Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__'
+        projectId
       });
 
       const response = await request(app)
@@ -81,7 +79,7 @@ describe('Evaluate Routes', () => {
         name: 'Disabled Flag',
         enabled: false,
         environment: 'test',
-        projectId: '__test__'
+        projectId
       });
 
       const response = await request(app)
@@ -115,7 +113,7 @@ describe('Evaluate Routes', () => {
         name: 'Targeted Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         targeting: {
           userIds: ['user-1', 'user-2']
         }
@@ -148,7 +146,7 @@ describe('Evaluate Routes', () => {
         name: 'Premium Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         targeting: {
           attributes: {
             plan: ['premium', 'enterprise']
@@ -189,7 +187,7 @@ describe('Evaluate Routes', () => {
         name: 'Rollout Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         rollout: {
           percentage: 100
         }
@@ -211,7 +209,7 @@ describe('Evaluate Routes', () => {
         name: 'Complex Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         targeting: {
           userIds: ['user-1']
         },
@@ -238,7 +236,7 @@ describe('Evaluate Routes', () => {
         name: 'Simple Flag',
         enabled: true,
         environment: 'test',
-        projectId: '__test__'
+        projectId
       });
 
       const response = await request(app)
@@ -258,7 +256,7 @@ describe('Evaluate Routes', () => {
         name: 'Flag A',
         enabled: true,
         environment: 'test',
-        projectId: '__test__'
+        projectId
       });
 
       await storage.createFlag({
@@ -266,7 +264,7 @@ describe('Evaluate Routes', () => {
         name: 'Flag B',
         enabled: false,
         environment: 'test',
-        projectId: '__test__'
+        projectId
       });
 
       await storage.createFlag({
@@ -274,7 +272,7 @@ describe('Evaluate Routes', () => {
         name: 'Flag C',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         targeting: {
           userIds: ['user-premium']
         }
@@ -321,7 +319,7 @@ describe('Evaluate Routes', () => {
         name: 'Premium Feature',
         enabled: true,
         environment: 'test',
-        projectId: '__test__',
+        projectId,
         targeting: {
           attributes: {
             plan: ['premium']

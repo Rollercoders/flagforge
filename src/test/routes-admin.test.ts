@@ -12,400 +12,69 @@ describe('Admin Routes', () => {
   const testDbPath = path.join(__dirname, '../../test-data/admin-test.db');
 
   beforeEach(async () => {
-    // Setup storage
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     const dir = path.dirname(testDbPath);
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
-    }
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     storage = new SqliteStorage(testDbPath);
     await storage.initialize();
-
-    // Setup Express app (no auth for admin routes)
     app = express();
     app.use(express.json());
     app.use('/admin', createAdminRouter(storage));
   });
 
   afterEach(() => {
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
-    }
-  });
-
-  describe('POST /admin/api-keys', () => {
-    it('should create a new API key', async () => {
-      const response = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Production Key',
-          environment: 'production',
-          projectId: 'test-project'
-        });
-
-      expect(response.status).toBe(201);
-      expect(response.body.id).toBeDefined();
-      expect(response.body.key).toBeDefined();
-      expect(response.body.key).toMatch(/^rf_/);
-      expect(response.body.name).toBe('Production Key');
-      expect(response.body.environment).toBe('production');
-      expect(response.body.createdAt).toBeDefined();
-    });
-
-    it('should generate unique keys', async () => {
-      const response1 = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Key 1',
-          environment: 'test',
-          projectId: 'test-project'
-        });
-
-      const response2 = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Key 2',
-          environment: 'test',
-          projectId: 'test-project'
-        });
-
-      expect(response1.body.key).not.toBe(response2.body.key);
-    });
-
-    it('should reject request without name', async () => {
-      const response = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          environment: 'production',
-          projectId: 'test-project'
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('name, environment, and projectId are required');
-    });
-
-    it('should reject request without environment', async () => {
-      const response = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Test Key',
-          projectId: 'test-project'
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('name, environment, and projectId are required');
-    });
-
-    it('should reject reserved projectId __admin__', async () => {
-      const response = await request(app)
-        .post('/admin/api-keys')
-        .send({ name: 'Test Key', environment: 'prod', projectId: '__admin__' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Reserved projectId');
-    });
-
-    it('should create keys for different environments', async () => {
-      const prodResponse = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Prod Key',
-          environment: 'production',
-          projectId: 'test-project'
-        });
-
-      const stagingResponse = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Staging Key',
-          environment: 'staging',
-          projectId: 'test-project'
-        });
-
-      expect(prodResponse.status).toBe(201);
-      expect(stagingResponse.status).toBe(201);
-      expect(prodResponse.body.environment).toBe('production');
-      expect(stagingResponse.body.environment).toBe('staging');
-    });
-
-    it('should generate keys with rf_ prefix', async () => {
-      const response = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Test Key',
-          environment: 'test',
-          projectId: 'test-project'
-        });
-
-      expect(response.body.key).toMatch(/^rf_[a-zA-Z0-9_-]{32}$/);
-    });
-  });
-
-  describe('GET /admin/api-keys', () => {
-    beforeEach(async () => {
-      await storage.createApiKey({
-        key: 'key-1',
-        name: 'Key 1',
-        environment: 'production',
-        projectId: 'test-project'
-      });
-
-      // Wait to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 5));
-
-      await storage.createApiKey({
-        key: 'key-2',
-        name: 'Key 2',
-        environment: 'staging',
-        projectId: 'test-project'
-      });
-
-      // Wait to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 5));
-
-      await storage.createApiKey({
-        key: 'key-3',
-        name: 'Key 3',
-        environment: 'development',
-        projectId: 'test-project'
-      });
-
-      // Wait to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 5));
-
-      await storage.createApiKey({
-        key: 'rf_uiadminkey123',
-        name: '__ui_admin__',
-        environment: '__admin__',
-        projectId: 'test-project'
-      });
-    });
-
-    it('should return all API keys', async () => {
-      const response = await request(app)
-        .get('/admin/api-keys');
-
-      expect(response.status).toBe(200);
-      // 4 keys were created but __ui_admin__ must be filtered out
-      expect(response.body).toHaveLength(3);
-      expect(response.body.every((k: { name: string }) => k.name !== '__ui_admin__')).toBe(true);
-    });
-
-    it('should return keys in descending order by creation date', async () => {
-      const response = await request(app)
-        .get('/admin/api-keys');
-
-      expect(response.status).toBe(200);
-      expect(response.body[0].key).toBe('key-3'); // Most recent
-      expect(response.body[1].key).toBe('key-2');
-      expect(response.body[2].key).toBe('key-1'); // Oldest
-    });
-
-    it('should include all key properties', async () => {
-      const response = await request(app)
-        .get('/admin/api-keys');
-
-      expect(response.status).toBe(200);
-      const key = response.body[0];
-      expect(key.id).toBeDefined();
-      expect(key.key).toBeDefined();
-      expect(key.name).toBeDefined();
-      expect(key.environment).toBeDefined();
-      expect(key.createdAt).toBeDefined();
-    });
-
-    it('should return empty array when no keys exist', async () => {
-      // Delete all keys
-      const keys = await storage.getAllApiKeys();
-      for (const key of keys) {
-        await storage.deleteApiKey(key.id);
-      }
-
-      const response = await request(app)
-        .get('/admin/api-keys');
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(0);
-    });
-  });
-
-  describe('DELETE /admin/api-keys/:id', () => {
-    let testKeyId: string;
-
-    beforeEach(async () => {
-      const key = await storage.createApiKey({
-        key: 'delete-test-key',
-        name: 'Delete Test',
-        environment: 'test',
-        projectId: 'test-project'
-      });
-      testKeyId = key.id;
-    });
-
-    it('should delete an API key', async () => {
-      const response = await request(app)
-        .delete(`/admin/api-keys/${testKeyId}`);
-
-      expect(response.status).toBe(204);
-
-      // Verify it's deleted
-      const keys = await storage.getAllApiKeys();
-      expect(keys.find(k => k.id === testKeyId)).toBeUndefined();
-    });
-
-    it('should return 204 even for non-existent key', async () => {
-      const response = await request(app)
-        .delete('/admin/api-keys/non-existent-id');
-
-      expect(response.status).toBe(204);
-    });
-
-    it('should not affect other keys when deleting one', async () => {
-      const key2 = await storage.createApiKey({
-        key: 'keep-this-key',
-        name: 'Keep This',
-        environment: 'test',
-        projectId: 'test-project'
-      });
-
-      await request(app)
-        .delete(`/admin/api-keys/${testKeyId}`);
-
-      const keys = await storage.getAllApiKeys();
-      expect(keys).toHaveLength(1);
-      expect(keys[0].id).toBe(key2.id);
-    });
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
   });
 
   describe('GET /admin/ui-token', () => {
-    it('should return 404 when __ui_admin__ key does not exist', async () => {
-      const response = await request(app).get('/admin/ui-token');
-      expect(response.status).toBe(404);
+    it('returns 404 when no admin key exists', async () => {
+      const res = await request(app).get('/admin/ui-token');
+      expect(res.status).toBe(404);
     });
 
-    it('should return the __ui_admin__ key when it exists', async () => {
-      await storage.createApiKey({
-        key: 'rf_uiadminkey123',
-        name: '__ui_admin__',
-        environment: '__admin__',
-        projectId: 'test-project'
-      });
-
-      const response = await request(app).get('/admin/ui-token');
-      expect(response.status).toBe(200);
-      expect(response.body.key).toBe('rf_uiadminkey123');
+    it('returns the admin key after bootstrap', async () => {
+      await storage.bootstrapAdminKey();
+      const key = await storage.getAdminKey();
+      const res = await request(app).get('/admin/ui-token');
+      expect(res.status).toBe(200);
+      expect(res.body.key).toBe(key);
+      expect(res.body.key).toMatch(/^ff_/);
     });
   });
 
-  describe('GET /admin/api-keys filters __ui_admin__', () => {
-    it('should not return __ui_admin__ key in the list', async () => {
-      await storage.createApiKey({
-        key: 'rf_uiadminkey123',
-        name: '__ui_admin__',
-        environment: '__admin__',
-        projectId: 'test-project'
-      });
-      await storage.createApiKey({
-        key: 'rf_normalkey456',
-        name: 'Production Key',
-        environment: 'production',
-        projectId: 'test-project'
-      });
-
-      const response = await request(app).get('/admin/api-keys');
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].name).toBe('Production Key');
-    });
-  });
-
-  describe('GET /admin/api-keys?projectId= filters by projectId', () => {
-    it('should return only keys matching the given projectId', async () => {
-      await storage.createApiKey({
-        key: 'rf_projectakey111',
-        name: 'Project A Key',
-        environment: 'production',
-        projectId: 'project-a',
-      });
-      await storage.createApiKey({
-        key: 'rf_projectbkey222',
-        name: 'Project B Key',
-        environment: 'production',
-        projectId: 'project-b',
-      });
-
-      const response = await request(app).get('/admin/api-keys?projectId=project-a');
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].name).toBe('Project A Key');
-      expect(response.body.every((k: { projectId: string }) => k.projectId === 'project-a')).toBe(true);
-    });
-  });
-
-  describe('Integration scenarios', () => {
-    it('should create, list, and delete API keys in sequence', async () => {
-      // Create
-      const createResponse = await request(app)
-        .post('/admin/api-keys')
-        .send({
-          name: 'Test Key',
-          environment: 'test',
-          projectId: 'test-project'
-        });
-
-      expect(createResponse.status).toBe(201);
-      const keyId = createResponse.body.id;
-
-      // List
-      const listResponse = await request(app)
-        .get('/admin/api-keys');
-
-      expect(listResponse.status).toBe(200);
-      expect(listResponse.body).toHaveLength(1);
-      expect(listResponse.body[0].id).toBe(keyId);
-
-      // Delete
-      const deleteResponse = await request(app)
-        .delete(`/admin/api-keys/${keyId}`);
-
-      expect(deleteResponse.status).toBe(204);
-
-      // Verify deleted
-      const finalListResponse = await request(app)
-        .get('/admin/api-keys');
-
-      expect(finalListResponse.body).toHaveLength(0);
+  describe('POST /admin/environments/:envId/regenerate-key', () => {
+    it('returns 404 for unknown envId', async () => {
+      const res = await request(app).post('/admin/environments/nope/regenerate-key');
+      expect(res.status).toBe(404);
     });
 
-    it('should handle multiple environments', async () => {
-      const environments = ['development', 'staging', 'production'];
+    it('returns the updated environment with a new key', async () => {
+      const project = await storage.createProject({ name: 'TestApp' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      const oldKey = env.key;
+      const res = await request(app).post(`/admin/environments/${env.id}/regenerate-key`);
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(env.id);
+      expect(res.body.key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
+      expect(res.body.key).not.toBe(oldKey);
+    });
 
-      for (const env of environments) {
-        const response = await request(app)
-          .post('/admin/api-keys')
-          .send({
-            name: `${env} Key`,
-            environment: env,
-            projectId: 'test-project'
-          });
+    it('new key is usable for auth lookup', async () => {
+      const project = await storage.createProject({ name: 'TestApp2' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'prod' });
+      const res = await request(app).post(`/admin/environments/${env.id}/regenerate-key`);
+      const newKey: string = res.body.key;
+      const found = await storage.getEnvironmentByKey(newKey);
+      expect(found?.id).toBe(env.id);
+    });
 
-        expect(response.status).toBe(201);
-        expect(response.body.environment).toBe(env);
-      }
-
-      const listResponse = await request(app)
-        .get('/admin/api-keys');
-
-      expect(listResponse.body).toHaveLength(3);
-
-      const envs = listResponse.body.map((k: any) => k.environment);
-      expect(envs).toContain('development');
-      expect(envs).toContain('staging');
-      expect(envs).toContain('production');
+    it('old key is no longer valid after regeneration', async () => {
+      const project = await storage.createProject({ name: 'TestApp3' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'prod' });
+      const oldKey = env.key;
+      await request(app).post(`/admin/environments/${env.id}/regenerate-key`);
+      const found = await storage.getEnvironmentByKey(oldKey);
+      expect(found).toBeNull();
     });
   });
 });

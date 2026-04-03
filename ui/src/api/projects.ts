@@ -14,6 +14,7 @@ export interface Environment {
   id: string;
   projectId: string;
   name: string;
+  key: string;
   createdAt: string;
 }
 
@@ -75,5 +76,11 @@ export async function renameEnvironment(projectId: string, envId: string, name: 
     const err = await res.json() as { error: string };
     throw new Error(err.error ?? 'Failed to rename environment');
   }
+  return res.json() as Promise<Environment>;
+}
+
+export async function regenerateEnvironmentKey(envId: string): Promise<Environment> {
+  const res = await adminFetch(`/admin/environments/${envId}/regenerate-key`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to regenerate key');
   return res.json() as Promise<Environment>;
 }

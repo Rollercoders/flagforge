@@ -20,7 +20,7 @@ import { nanoid } from 'nanoid';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 6789;
 const STORAGE_TYPE = process.env.STORAGE_TYPE || 'sqlite';
 const STORAGE_PATH = process.env.STORAGE_PATH || './data/flagforge.db';
 
@@ -29,7 +29,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function bootstrapAdminPassword(): void {
   if (process.env.ADMIN_PASSWORD) return;
 
-  const password = `rf_admin_${nanoid(32)}`;
+  const password = `ff_admin_${nanoid(32)}`;
   process.env.ADMIN_PASSWORD = password;
 
   const envPath = join(process.cwd(), '.env');
@@ -47,19 +47,6 @@ function bootstrapAdminPassword(): void {
   console.log('========================================\n');
 }
 
-async function bootstrapUiAdminKey(storage: Storage): Promise<void> {
-  const allKeys = await storage.getAllApiKeys();
-  const exists = allKeys.some(k => k.name === '__ui_admin__');
-  if (!exists) {
-    await storage.createApiKey({
-      key: `rf_${nanoid(32)}`,
-      name: '__ui_admin__',
-      environment: '__admin__',
-      projectId: '__admin__'
-    });
-    console.log('✓ UI admin key created');
-  }
-}
 
 async function main() {
   bootstrapAdminPassword();
@@ -89,7 +76,8 @@ async function main() {
   await storage.initialize();
   console.log(`✓ Storage initialized (${STORAGE_TYPE})`);
 
-  await bootstrapUiAdminKey(storage);
+  await storage.bootstrapAdminKey();
+  console.log('✓ UI admin key ready');
 
   const evaluator = new FlagEvaluator();
   const authMiddleware = createAuthMiddleware(storage);
