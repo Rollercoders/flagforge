@@ -74,6 +74,11 @@ describe('Projects Routes', () => {
       const keys = await storage.getAllApiKeys(projectId);
       expect(keys).toHaveLength(0);
     });
+
+    it('should return 404 for non-existent project', async () => {
+      const res = await request(app).delete('/admin/projects/nonexistent-id');
+      expect(res.status).toBe(404);
+    });
   });
 
   describe('GET /admin/projects/:id/environments', () => {
@@ -113,6 +118,11 @@ describe('Projects Routes', () => {
       expect(res.status).toBe(409);
     });
 
+    it('should return 404 for non-existent project', async () => {
+      const res = await request(app).post('/admin/projects/nonexistent-id/environments').send({ name: 'prod' });
+      expect(res.status).toBe(404);
+    });
+
     it('should create flag rows for existing flags when adding an environment', async () => {
       await request(app).post(`/admin/projects/${projectId}/environments`).send({ name: 'staging' });
       await storage.createApiKey({ key: 'rf_test', name: 'test', environment: 'staging', projectId });
@@ -124,6 +134,9 @@ describe('Projects Routes', () => {
       const flag = await storage.getFlag(projectId, 'feat', 'production');
       expect(flag).not.toBeNull();
       expect(flag?.enabled).toBe(false);
+      expect(flag?.key).toBe('feat');
+      expect(flag?.name).toBe('Feature');
+      expect(flag?.projectId).toBe(projectId);
     });
   });
 

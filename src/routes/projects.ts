@@ -29,6 +29,8 @@ export function createProjectsRouter(storage: Storage) {
 
   router.delete('/projects/:id', async (req, res) => {
     try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
       await storage.deleteProject(req.params.id);
       res.status(204).send();
     } catch (_error) {
@@ -49,6 +51,8 @@ export function createProjectsRouter(storage: Storage) {
       const { name } = req.body as { name?: string };
       if (!name) { res.status(400).json({ error: 'name is required' }); return; }
       const projectId = req.params.id;
+      const project = await storage.getProject(projectId);
+      if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
       const env = await storage.createEnvironment({ projectId, name });
       res.status(201).json(env);
     } catch (_error: any) {
