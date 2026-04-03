@@ -12,6 +12,10 @@ export function createAdminRouter(storage: Storage) {
         res.status(400).json({ error: 'name, environment, and projectId are required' });
         return;
       }
+      if (projectId === '__admin__') {
+        res.status(400).json({ error: 'Reserved projectId' });
+        return;
+      }
       const key = `rf_${nanoid(32)}`;
       const apiKey = await storage.createApiKey({ key, name, environment, projectId });
       res.status(201).json(apiKey);

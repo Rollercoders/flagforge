@@ -86,10 +86,13 @@ export class SqliteStorage implements Storage {
 
   async deleteProject(id: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db.prepare('DELETE FROM api_keys WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM flags WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM environments WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    const db = this.db;
+    db.transaction(() => {
+      db.prepare('DELETE FROM api_keys WHERE project_id = ?').run(id);
+      db.prepare('DELETE FROM flags WHERE project_id = ?').run(id);
+      db.prepare('DELETE FROM environments WHERE project_id = ?').run(id);
+      db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    })();
   }
 
   async createEnvironment(env: Omit<Environment, 'id' | 'createdAt'>): Promise<Environment> {

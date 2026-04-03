@@ -159,5 +159,11 @@ describe('Projects Routes', () => {
       const keys = await storage.getAllApiKeys(projectId);
       expect(keys).toHaveLength(0);
     });
+
+    it('should return 404 for non-existent or wrong-project envId', async () => {
+      const proj = await request(app).post('/admin/projects').send({ name: 'my-app' });
+      const res = await request(app).delete(`/admin/projects/${proj.body.id}/environments/nonexistent-id`);
+      expect(res.status).toBe(404);
+    });
   });
 });

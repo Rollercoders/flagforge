@@ -66,6 +66,9 @@ export function createProjectsRouter(storage: Storage) {
 
   router.delete('/projects/:id/environments/:envId', async (req, res) => {
     try {
+      const envs = await storage.getEnvironmentsByProject(req.params.id);
+      const env = envs.find(e => e.id === req.params.envId);
+      if (!env) { res.status(404).json({ error: 'Environment not found' }); return; }
       await storage.deleteEnvironment(req.params.envId);
       res.status(204).send();
     } catch (_error) {
