@@ -175,6 +175,61 @@ describe('Flags Routes', () => {
     });
   });
 
+  describe('Cross-project isolation on single-flag endpoints', () => {
+    let projectBApiKey: string;
+
+    beforeEach(async () => {
+      // Create a second project with its own environment and API key
+      const projectB = await storage.createProject({ name: 'project-b' });
+      await storage.createEnvironment({ projectId: projectB.id, name: 'test' });
+      const keyB = await storage.createApiKey({ key: 'api-key-b', name: 'Project B Key', environment: 'test', projectId: projectB.id });
+      projectBApiKey = keyB.key;
+
+      // Create a flag in project A
+      await storage.createFlag({ projectId, key: 'project-a-flag', name: 'Project A Flag', enabled: true, environment: 'test' });
+    });
+
+    it('should return 404 when GET a flag from another project', async () => {
+      const response = await request(app).get('/api/flags/project-a-flag').set('Authorization', `Bearer ${projectBApiKey}`);
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 404 when PATCH a flag from another project', async () => {
+      const response = await request(app).patch('/api/flags/project-a-flag').set('Authorization', `Bearer ${projectBApiKey}`).send({ enabled: false });
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 404 when DELETE a flag from another project', async () => {
+      const response = await request(app).delete('/api/flags/project-a-flag').set('Authorization', `Bearer ${projectBApiKey}`);
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('Multi-environment flag creation', () => {
+    it('should create a flag visible in all environments of the project', async () => {
+      // Create a second environment for the test project
+      await storage.createEnvironment({ projectId, name: 'staging' });
+      const stagingKey = await storage.createApiKey({ key: 'staging-api-key', name: 'Staging Key', environment: 'staging', projectId });
+
+      // Create a flag via the API using the first environment's key
+      const createResponse = await request(app)
+        .post('/api/flags')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ key: 'multi-env-flag', name: 'Multi Env Flag' });
+      expect(createResponse.status).toBe(201);
+
+      // Verify the flag appears when listing with the 'test' environment key
+      const testListResponse = await request(app).get('/api/flags').set('Authorization', `Bearer ${apiKey}`);
+      expect(testListResponse.status).toBe(200);
+      expect(testListResponse.body.find((f: any) => f.key === 'multi-env-flag')).toBeDefined();
+
+      // Verify the flag also appears when listing with the 'staging' environment key
+      const stagingListResponse = await request(app).get('/api/flags').set('Authorization', `Bearer ${stagingKey.key}`);
+      expect(stagingListResponse.status).toBe(200);
+      expect(stagingListResponse.body.find((f: any) => f.key === 'multi-env-flag')).toBeDefined();
+    });
+  });
+
   describe('Authentication', () => {
     it('should reject requests without auth header', async () => {
       expect((await request(app).get('/api/flags')).status).toBe(401);

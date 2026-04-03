@@ -112,7 +112,8 @@ export class JsonStorage implements Storage {
   async updateFlag(id: string, updates: Partial<Flag>): Promise<Flag> {
     const index = this.data.flags.findIndex(f => f.id === id);
     if (index === -1) throw new Error('Flag not found');
-    this.data.flags[index] = { ...this.data.flags[index], ...updates, updatedAt: new Date().toISOString() };
+    const defined = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined));
+    this.data.flags[index] = { ...this.data.flags[index], ...defined, updatedAt: new Date().toISOString() };
     this.save();
     return this.data.flags[index];
   }

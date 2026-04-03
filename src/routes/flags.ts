@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Storage } from '../types';
+import { Storage, Flag } from '../types';
 import { AuthRequest } from '../middleware/auth';
 
 export function createFlagsRouter(storage: Storage) {
@@ -14,7 +14,11 @@ export function createFlagsRouter(storage: Storage) {
       }
       const { projectId, environment } = req.apiKey!;
       const flags = await storage.createFlag({ projectId, key, name, description, enabled: false, environment, targeting, rollout });
-      const flagForEnv = flags.find(f => f.environment === environment) ?? flags[0];
+      const flagForEnv = flags.find(f => f.environment === environment);
+      if (!flagForEnv) {
+        res.status(500).json({ error: 'Internal error: flag not created for expected environment' });
+        return;
+      }
       res.status(201).json(flagForEnv);
     } catch (_error: any) {
       if (_error.message?.includes('UNIQUE constraint') || _error.message?.includes('already exists')) {
@@ -53,8 +57,13 @@ export function createFlagsRouter(storage: Storage) {
       const { projectId, environment } = req.apiKey!;
       const flag = await storage.getFlag(projectId, key, environment);
       if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
-      const { name, description, enabled, targeting, rollout } = req.body;
-      const updated = await storage.updateFlag(flag.id, { name, description, enabled, targeting, rollout });
+      const updates: Partial<Pick<Flag, 'name' | 'description' | 'enabled' | 'targeting' | 'rollout'>> = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.description !== undefined) updates.description = req.body.description;
+      if (req.body.enabled !== undefined) updates.enabled = req.body.enabled;
+      if (req.body.targeting !== undefined) updates.targeting = req.body.targeting;
+      if (req.body.rollout !== undefined) updates.rollout = req.body.rollout;
+      const updated = await storage.updateFlag(flag.id, updates);
       res.json(updated);
     } catch (_error) {
       res.status(500).json({ error: 'Failed to update flag' });
