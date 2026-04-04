@@ -6,6 +6,36 @@ import { AuthRequest } from '../middleware/auth';
 export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator) {
   const router = Router();
 
+  // Evaluate all flags for the environment
+  router.post('/all', async (req: AuthRequest, res) => {
+    try {
+      const environment = req.apiKey?.environment;
+
+      if (!environment) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const projectId = req.apiKey?.projectId ?? '';
+      const body = req.body as { userId?: string; attributes?: Record<string, string> };
+      const context: FlagEvaluationContext = {
+        userId: body.userId,
+        attributes: body.attributes
+      };
+
+      const flags = await storage.getAllFlags(projectId, environment);
+      const results: Record<string, boolean> = {};
+
+      for (const flag of flags) {
+        results[flag.key] = evaluator.evaluate(flag, context);
+      }
+
+      res.json(results);
+    } catch (_error) {
+      res.status(500).json({ error: 'Failed to evaluate flags' });
+    }
+  });
+
   // Evaluate a single flag
   router.post('/:key', async (req: AuthRequest, res) => {
     try {
