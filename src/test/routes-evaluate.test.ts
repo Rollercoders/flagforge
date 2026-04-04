@@ -42,6 +42,34 @@ describe('Evaluate Routes', () => {
     app.use(express.json());
     app.use(createAuthMiddleware(storage));
     app.use('/api/evaluate', createEvaluateRouter(storage, evaluator));
+
+    // Create shared test flags for batch and all endpoints
+    await storage.createFlag({
+      key: 'flag-a',
+      name: 'Flag A',
+      enabled: true,
+      environment: 'test',
+      projectId
+    });
+
+    await storage.createFlag({
+      key: 'flag-b',
+      name: 'Flag B',
+      enabled: false,
+      environment: 'test',
+      projectId
+    });
+
+    await storage.createFlag({
+      key: 'flag-c',
+      name: 'Flag C',
+      enabled: true,
+      environment: 'test',
+      projectId,
+      targeting: {
+        userIds: ['user-premium']
+      }
+    });
   });
 
   afterEach(() => {
@@ -250,35 +278,6 @@ describe('Evaluate Routes', () => {
   });
 
   describe('POST /api/evaluate (batch)', () => {
-    beforeEach(async () => {
-      await storage.createFlag({
-        key: 'flag-a',
-        name: 'Flag A',
-        enabled: true,
-        environment: 'test',
-        projectId
-      });
-
-      await storage.createFlag({
-        key: 'flag-b',
-        name: 'Flag B',
-        enabled: false,
-        environment: 'test',
-        projectId
-      });
-
-      await storage.createFlag({
-        key: 'flag-c',
-        name: 'Flag C',
-        enabled: true,
-        environment: 'test',
-        projectId,
-        targeting: {
-          userIds: ['user-premium']
-        }
-      });
-    });
-
     it('should evaluate multiple flags at once', async () => {
       const response = await request(app)
         .post('/api/evaluate')
@@ -406,6 +405,80 @@ describe('Evaluate Routes', () => {
         .send({
           userId: 'user-123'
         });
+
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/evaluate/all', () => {
+    it('should return all flags evaluated with context', async () => {
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'user-123' });
+
+      expect(response.status).toBe(200);
+      expect(response.body['flag-a']).toBe(true);
+      expect(response.body['flag-b']).toBe(false);
+      expect(response.body['flag-c']).toBe(false); // targeting doesn't match
+    });
+
+    it('should apply targeting rules correctly', async () => {
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'user-premium' });
+
+      expect(response.status).toBe(200);
+      expect(response.body['flag-c']).toBe(true); // targeting matches
+    });
+
+    it('should apply attribute targeting correctly', async () => {
+      await storage.createFlag({
+        key: 'premium-flag',
+        name: 'Premium Flag',
+        enabled: true,
+        environment: 'test',
+        projectId,
+        targeting: { attributes: { plan: ['premium'] } }
+      });
+
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'user-123', attributes: { plan: 'premium' } });
+
+      expect(response.status).toBe(200);
+      expect(response.body['premium-flag']).toBe(true);
+    });
+
+    it('should return {} for an environment with no flags', async () => {
+      const project2 = await storage.createProject({ name: 'empty-project' });
+      const env2 = await storage.createEnvironment({ projectId: project2.id, name: 'empty' });
+
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${env2.key}`)
+        .send({});
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({});
+    });
+
+    it('should work without context', async () => {
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({});
+
+      expect(response.status).toBe(200);
+      expect(typeof response.body).toBe('object');
+    });
+
+    it('should reject requests without auth', async () => {
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .send({ userId: 'user-123' });
 
       expect(response.status).toBe(401);
     });
