@@ -211,6 +211,7 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
         const updates: UpdateFlagPayload = {
           name: payload.name,
           description: payload.description,
+          enabled: form.enabled,
           targeting: payload.targeting,
           rollout: payload.rollout,
         };
