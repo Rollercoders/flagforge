@@ -16,6 +16,8 @@ import { createEvaluateRouter } from './routes/evaluate.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createProjectsRouter } from './routes/projects.js';
+import { createAdminFlagsRouter } from './routes/adminFlags.js';
+import { createAdminEvaluateRouter } from './routes/adminEvaluate.js';
 import { nanoid } from 'nanoid';
 
 dotenv.config();
@@ -89,6 +91,8 @@ async function main() {
   app.use('/auth', createAuthRouter(sessions));
   app.use('/admin', requireAdminSession(sessions), createAdminRouter(storage));
   app.use('/admin', requireAdminSession(sessions), createProjectsRouter(storage));
+  app.use('/admin/flags', requireAdminSession(sessions), createAdminFlagsRouter(storage));
+  app.use('/admin/evaluate', requireAdminSession(sessions), createAdminEvaluateRouter(storage, evaluator));
   app.use('/api/flags', authMiddleware, createFlagsRouter(storage));
   app.use('/api/evaluate', authMiddleware, createEvaluateRouter(storage, evaluator));
 

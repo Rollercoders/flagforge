@@ -36,14 +36,14 @@ export interface UpdateFlagPayload {
 }
 
 export async function getFlags(projectId: string, environment: string): Promise<Flag[]> {
-  const url = `/api/flags?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
+  const url = `/admin/flags?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
   const res = await apiFetch(url);
   if (!res.ok) throw new Error('Failed to fetch flags');
   return res.json() as Promise<Flag[]>;
 }
 
 export async function createFlag(projectId: string, environment: string, payload: CreateFlagPayload): Promise<Flag> {
-  const res = await apiFetch('/api/flags', {
+  const res = await apiFetch('/admin/flags', {
     method: 'POST',
     body: JSON.stringify({ ...payload, projectId, environment }),
   });
@@ -55,7 +55,7 @@ export async function createFlag(projectId: string, environment: string, payload
 }
 
 export async function updateFlag(key: string, projectId: string, environment: string, payload: UpdateFlagPayload): Promise<Flag> {
-  const url = `/api/flags/${key}?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
+  const url = `/admin/flags/${key}?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
   const res = await apiFetch(url, {
     method: 'PATCH',
     body: JSON.stringify(payload),
@@ -68,7 +68,7 @@ export async function updateFlag(key: string, projectId: string, environment: st
 }
 
 export async function deleteFlag(key: string, projectId: string, environment: string): Promise<void> {
-  const url = `/api/flags/${key}?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
+  const url = `/admin/flags/${key}?projectId=${encodeURIComponent(projectId)}&environment=${encodeURIComponent(environment)}`;
   const res = await apiFetch(url, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete flag');
 }
