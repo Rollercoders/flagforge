@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
+import dotenv from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { intro, outro, text, select, confirm, isCancel, cancel, note, log } from '@clack/prompts';
@@ -115,12 +116,8 @@ async function runStart(): Promise<void> {
     console.error('Nessun .env trovato in questa cartella. Esegui prima `flagforge init`.');
     process.exit(1);
   }
-  // Carica .env manualmente nel process.env tramite dotenv-style parsing.
-  const raw = readFileSync(envPath, 'utf8');
-  for (const line of raw.split('\n')) {
-    const m = line.match(/^\s*([\w.]+)\s*=\s*(.*)\s*$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
-  }
+  // Carica .env tramite dotenv senza sovrascrivere variabili già presenti in process.env.
+  dotenv.config({ path: envPath, override: false });
 
   const config: ServerConfig = {
     port: Number(process.env.PORT) || 6789,
@@ -129,33 +126,33 @@ async function runStart(): Promise<void> {
     adminPassword: process.env.ADMIN_PASSWORD,
   };
   await launch(config, envPath);
+  outro('FlagForge è in esecuzione.');
 }
 
 async function launch(config: ServerConfig, envPath: string): Promise<void> {
-  let result;
   try {
-    result = await startServer(config);
+    const result = await startServer(config);
+
+    // Persisti la password generata su .env, così `start` la riusa.
+    if (result.generatedPassword) {
+      try {
+        const current = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+        const sep = current.endsWith('\n') || current === '' ? '' : '\n';
+        writeFileSync(envPath, `${current}${sep}ADMIN_PASSWORD=${result.adminPassword}\n`, 'utf8');
+      } catch {
+        // non bloccante
+      }
+      note(
+        `Admin password (generata):\n  ${result.adminPassword}\n\nSalvata in .env — conservala.`,
+        'Credenziali'
+      );
+    }
+
+    note(`FlagForge è in esecuzione su:\n  ${result.url}`, 'Pronto');
   } catch (err) {
     console.error((err as Error).message ?? err);
     process.exit(1);
   }
-
-  // Persisti la password generata su .env, così `start` la riusa.
-  if (result.generatedPassword) {
-    try {
-      const current = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
-      const sep = current.endsWith('\n') || current === '' ? '' : '\n';
-      writeFileSync(envPath, `${current}${sep}ADMIN_PASSWORD=${result.adminPassword}\n`, 'utf8');
-    } catch {
-      // non bloccante
-    }
-    note(
-      `Admin password (generata):\n  ${result.adminPassword}\n\nSalvata in .env — conservala.`,
-      'Credenziali'
-    );
-  }
-
-  note(`FlagForge è in esecuzione su:\n  ${result.url}`, 'Pronto');
 }
 
 async function main(): Promise<void> {
