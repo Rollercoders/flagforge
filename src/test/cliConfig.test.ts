@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultStoragePath, buildConfigFromAnswers, renderEnvFile } from '../cliConfig.js';
+import { defaultStoragePath, buildConfigFromAnswers, renderEnvFile } from '../cliConfig';
 
 describe('defaultStoragePath', () => {
   it('returns sqlite db path for sqlite', () => {
