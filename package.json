@@ -2,6 +2,17 @@
   "name": "flagforge",
   "version": "0.1.0",
   "description": "Open-source, on-premise feature flagging platform",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rollercoders/flagforge.git"
+  },
+  "homepage": "https://github.com/Rollercoders/flagforge#readme",
+  "bugs": {
+    "url": "https://github.com/Rollercoders/flagforge/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "dist/index.js",
   "bin": "./dist/cli.js",
@@ -35,7 +46,7 @@
     "rollout",
     "on-premise"
   ],
-  "author": "",
+  "author": "Rollercoders",
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^1.6.0",
