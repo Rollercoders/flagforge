@@ -39,6 +39,11 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   if (!adminPassword) {
     adminPassword = `ff_admin_${nanoid(32)}`;
     generatedPassword = true;
+    console.log('\n========================================');
+    console.log('  ADMIN PASSWORD GENERATED (first boot)');
+    console.log(`  ${adminPassword}`);
+    console.log('  Set ADMIN_PASSWORD in your .env to keep it stable.');
+    console.log('========================================\n');
   }
   process.env.ADMIN_PASSWORD = adminPassword;
 

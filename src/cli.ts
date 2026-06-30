@@ -3,7 +3,7 @@ import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
 import dotenv from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { intro, outro, text, select, confirm, isCancel, cancel, note, log } from '@clack/prompts';
+import { intro, outro, text, password, select, confirm, isCancel, cancel, note, log } from '@clack/prompts';
 import { startServer, ServerConfig } from './server.js';
 import {
   buildConfigFromAnswers,
@@ -84,9 +84,8 @@ async function runInit(): Promise<void> {
   });
   if (isCancel(storagePath)) bail();
 
-  const adminPassword = await text({
+  const adminPassword = await password({
     message: 'Admin password (lascia vuoto per generarne una automaticamente):',
-    initialValue: '',
   });
   if (isCancel(adminPassword)) bail();
 
