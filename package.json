@@ -4,9 +4,7 @@
   "description": "Open-source, on-premise feature flagging platform",
   "type": "module",
   "main": "dist/index.js",
-  "bin": {
-    "flagforge": "./dist/cli.js"
-  },
+  "bin": "./dist/cli.js",
   "files": [
     "dist",
     "ui/dist",
