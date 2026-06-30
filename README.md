@@ -19,7 +19,21 @@ Open-source, on-premise feature flagging platform built for speed and simplicity
 
 ## Quick Start
 
-### Installation
+### Fastest: 1-click installer
+
+```bash
+npx flagforge init
+```
+
+An interactive wizard asks for the port, storage backend and admin password,
+creates `.env` and `data/` in the current directory, and starts the server right
+away. To restart later without reconfiguring:
+
+```bash
+flagforge start
+```
+
+### From source (development)
 
 ```bash
 yarn install
