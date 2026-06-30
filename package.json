@@ -4,13 +4,22 @@
   "description": "Open-source, on-premise feature flagging platform",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "flagforge": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "ui/dist",
+    "README.md",
+    "LICENSE"
+  ],
   "workspaces": [
     "ui"
   ],
   "scripts": {
     "dev": "concurrently \"tsx watch src/index.ts\" \"yarn ui:dev\"",
     "dev:server": "tsx watch src/index.ts",
-    "build": "yarn ui:build && tsc",
+    "build": "yarn ui:build && tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "ui:dev": "yarn --cwd ui dev",
     "ui:build": "yarn --cwd ui build",
@@ -19,6 +28,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "prepublishOnly": "yarn build",
     "prepare": "husky"
   },
   "keywords": [

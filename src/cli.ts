@@ -93,8 +93,8 @@ async function runInit(): Promise<void> {
   const answers: WizardAnswers = {
     port: Number(portRaw),
     storageType: storageType as 'sqlite' | 'json',
-    storagePath: storagePath as string,
-    adminPassword: (adminPassword as string).trim() || undefined,
+    storagePath: storagePath,
+    adminPassword: adminPassword.trim() || undefined,
   };
 
   const config = buildConfigFromAnswers(answers);
@@ -180,4 +180,7 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error((err as Error).message ?? err);
+  process.exit(1);
+});
