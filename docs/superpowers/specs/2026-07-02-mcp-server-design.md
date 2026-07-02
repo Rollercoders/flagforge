@@ -81,7 +81,8 @@ e ritorna il risultato come `content` testuale (JSON). Handler iniettati con `St
    `{ projectId, environment, key, name?, description?, enabled?, targeting?, rollout? }`.
    Se il flag non esiste → `createFlag`; se esiste → `updateFlag` (patch). Un solo tool
    "upsert" invece di create + update separati. Valida `rollout.percentage` in [0, 100] e
-   la forma di `targeting`, riusando la logica di validazione delle route admin esistenti.
+   la forma di `targeting`. Nota: le route admin attuali **non** validano `rollout.percentage`,
+   quindi questa validazione viene introdotta negli schemi Zod dei tool MCP.
 
 5. **`evaluate_flag`** — `{ projectId, environment, key, userId?, attributes? }` → usa
    `FlagEvaluator` e ritorna se il flag risulta attivo per quel contesto, con la
