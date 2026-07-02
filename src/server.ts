@@ -16,6 +16,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createProjectsRouter } from './routes/projects.js';
 import { createAdminFlagsRouter } from './routes/adminFlags.js';
 import { createAdminEvaluateRouter } from './routes/adminEvaluate.js';
+import { createMcpRouter } from './mcp/server.js';
 import { nanoid } from 'nanoid';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,15 @@ export interface ServerConfig {
   storageType: 'sqlite' | 'json';
   storagePath: string;
   adminPassword?: string;
+  mcpToken?: string;
+}
+
+/**
+ * Determina se l'endpoint MCP va montato: solo se il token è presente e non vuoto
+ * (dopo trim). Funzione pura, estratta per essere testabile senza avviare un listener reale.
+ */
+export function shouldMountMcp(token?: string): boolean {
+  return typeof token === 'string' && token.trim() !== '';
 }
 
 export interface StartResult {
@@ -88,6 +98,12 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   app.use('/admin/evaluate', requireAdminSession(sessions), createAdminEvaluateRouter(storage, evaluator));
   app.use('/api/flags', authMiddleware, createFlagsRouter(storage));
   app.use('/api/evaluate', authMiddleware, createEvaluateRouter(storage, evaluator));
+
+  const mcpToken = config.mcpToken ?? process.env.MCP_TOKEN;
+  if (shouldMountMcp(mcpToken)) {
+    app.use('/mcp', createMcpRouter(storage, evaluator, mcpToken as string));
+    console.log('✓ MCP endpoint mounted at /mcp');
+  }
 
   const uiDistPath = join(__dirname, '../ui/dist');
   app.use(express.static(uiDistPath));
