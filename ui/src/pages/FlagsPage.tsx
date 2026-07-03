@@ -12,6 +12,7 @@ import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { Drawer } from '../components/Drawer';
 import { useToast } from '../components/Toast';
+import { useFlagChanges } from '../hooks/useFlagChanges';
 
 interface FlagsPageProps {
   projectId: string;
@@ -173,6 +174,13 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
   useEffect(() => {
     void loadFlags();
   }, [loadFlags]);
+
+  useFlagChanges((change) => {
+    // Rifai la fetch solo se l'evento riguarda la vista corrente.
+    if (change.projectId === projectId && (change.environment === undefined || change.environment === environment)) {
+      void loadFlags();
+    }
+  });
 
   function openCreate() {
     setEditingFlag(null);
