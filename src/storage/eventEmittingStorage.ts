@@ -23,7 +23,9 @@ export class EventEmittingStorage implements Storage {
   // Flags — emit dopo mutazione
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     const result = await this.inner.createFlag(flag);
-    this.bus.emit({ projectId: flag.projectId, environment: flag.environment });
+    for (const created of result) {
+      this.bus.emit({ projectId: created.projectId, environment: created.environment });
+    }
     return result;
   }
   async updateFlag(id: string, updates: Partial<Flag>): Promise<Flag> {

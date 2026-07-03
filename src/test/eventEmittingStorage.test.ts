@@ -6,8 +6,10 @@ import { Storage, Flag } from '../types.js';
 // FakeStorage minimale: implementa i metodi toccati dai test.
 class FakeStorage implements Partial<Storage> {
   createFlagCalls: unknown[] = [];
+  createFlagFanOut: Flag[] | null = null;
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     this.createFlagCalls.push(flag);
+    if (this.createFlagFanOut) return this.createFlagFanOut;
     return [{ ...flag, id: 'f1', createdAt: 't', updatedAt: 't' }];
   }
   async updateFlag(id: string, updates: Partial<Flag>): Promise<Flag> {
@@ -36,6 +38,19 @@ describe('EventEmittingStorage', () => {
     expect(result).toHaveLength(1);           // valore di ritorno dell'inner passato attraverso
     expect(inner.createFlagCalls).toHaveLength(1); // delega avvenuta
     expect(changes).toEqual([{ projectId: 'p1', environment: 'production' }]);
+  });
+
+  it('createFlag con fan-out multi-environment emette un evento per ogni flag creato', async () => {
+    inner.createFlagFanOut = [
+      { id: 'f1', projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'staging', createdAt: 't', updatedAt: 't' },
+      { id: 'f2', projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'production', createdAt: 't', updatedAt: 't' },
+    ];
+    const result = await storage.createFlag({ projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'staging' });
+    expect(result).toHaveLength(2);
+    expect(changes).toEqual([
+      { projectId: 'p1', environment: 'staging' },
+      { projectId: 'p1', environment: 'production' },
+    ]);
   });
 
   it('updateFlag emette usando projectId/environment del flag ritornato', async () => {
