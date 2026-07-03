@@ -358,7 +358,7 @@ Restart the server for the change to take effect.
 | `list_environments` | List environments for a project |
 | `list_flags` | List flags for a project + environment |
 | `set_flag` | Create or update a flag (upsert) |
-| `evaluate_flag` | Evaluate a flag for a given context |
+| `evaluate_flag` | Evaluate a flag for a given context; also returns a `reason` explaining the outcome (`disabled`, `targeting-miss`, `rollout-excluded`, `enabled`) |
 
 There is intentionally **no delete tool** — flag deletion is only available through the web app or the admin API.
 

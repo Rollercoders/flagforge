@@ -122,7 +122,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     {
       name: 'evaluate_flag',
       description:
-        'Valuta se un flag è attivo per un dato contesto (userId/attributes) in un progetto+environment.',
+        'Valuta se un flag è attivo per un dato contesto (userId/attributes) in un progetto+environment. Ritorna anche `reason`, la motivazione dell’esito (valori: disabled, targeting-miss, rollout-excluded, enabled).',
       inputSchema: {
         projectId: z.string(),
         environment: z.string(),
@@ -137,8 +137,8 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
           userId: args.userId as string | undefined,
           attributes: args.attributes as Record<string, string> | undefined,
         };
-        const enabled = evaluator.evaluate(flag, context);
-        return ok({ key: flag.key, environment: flag.environment, enabled });
+        const { enabled, reason } = evaluator.explain(flag, context);
+        return ok({ key: flag.key, environment: flag.environment, enabled, reason });
       },
     },
   ];

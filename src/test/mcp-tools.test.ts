@@ -105,7 +105,9 @@ describe('buildTools', () => {
     const yes = parse(await tool(tools, 'evaluate_flag').handler({ projectId: 'p1', environment: 'production', key: 'f', userId: 'alice' }));
     const no = parse(await tool(tools, 'evaluate_flag').handler({ projectId: 'p1', environment: 'production', key: 'f', userId: 'bob' }));
     expect(yes.enabled).toBe(true);
+    expect(yes.reason).toBe('enabled');
     expect(no.enabled).toBe(false);
+    expect(no.reason).toBe('targeting-miss');
   });
 
   it('evaluate_flag ritorna errore se il flag non esiste', async () => {
