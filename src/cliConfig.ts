@@ -5,6 +5,7 @@ export interface WizardAnswers {
   storageType: 'sqlite' | 'json';
   storagePath: string;
   adminPassword?: string;
+  mcpToken?: string;
 }
 
 export function defaultStoragePath(storageType: 'sqlite' | 'json'): string {
@@ -17,6 +18,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers): ServerConfig {
     storageType: answers.storageType,
     storagePath: answers.storagePath,
     adminPassword: answers.adminPassword ? answers.adminPassword : undefined,
+    mcpToken: answers.mcpToken ? answers.mcpToken : undefined,
   };
 }
 
@@ -28,6 +30,9 @@ export function renderEnvFile(config: ServerConfig): string {
   ];
   if (config.adminPassword) {
     lines.push(`ADMIN_PASSWORD=${config.adminPassword}`);
+  }
+  if (config.mcpToken) {
+    lines.push(`MCP_TOKEN=${config.mcpToken}`);
   }
   return lines.join('\n') + '\n';
 }

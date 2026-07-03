@@ -331,6 +331,58 @@ Response:
 | POST | `/api/evaluate/:key` | Evaluate a single flag |
 | POST | `/api/evaluate` | Batch evaluate multiple flags |
 
+## MCP Server
+
+FlagForge ships with an opt-in [Model Context Protocol](https://modelcontextprotocol.io) endpoint that lets AI agents (Claude, Cursor, etc.) manage your feature flags directly.
+
+The endpoint is mounted at `/mcp` and is **disabled by default**. It is only mounted when an `MCP_TOKEN` is configured.
+
+### Enabling it
+
+Either:
+
+- Answer "yes" to "Setup also FlagForge MCP server?" during `flagforge init` — a token is generated for you and saved to `.env`, and a ready-to-paste client config is printed.
+- Or set `MCP_TOKEN` manually in `.env`:
+
+```env
+MCP_TOKEN=ff_mcp_your_token_here
+```
+
+Restart the server for the change to take effect.
+
+### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all projects |
+| `list_environments` | List environments for a project |
+| `list_flags` | List flags for a project + environment |
+| `set_flag` | Create or update a flag (upsert) |
+| `evaluate_flag` | Evaluate a flag for a given context |
+
+There is intentionally **no delete tool** — flag deletion is only available through the web app or the admin API.
+
+### Client configuration
+
+Point your MCP-compatible client at the endpoint, sending the token as a bearer `Authorization` header:
+
+```json
+{
+  "mcpServers": {
+    "flagforge": {
+      "url": "http://<host>:<port>/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-mcp-token>"
+      }
+    }
+  }
+}
+```
+
+### Security note
+
+The MCP endpoint is opt-in and the token grants **full read/write control over all flags** (across all projects and environments) — treat it like an admin credential. Do not share it or commit it to source control.
+
 ## Client Integration Example
 
 ### Node.js

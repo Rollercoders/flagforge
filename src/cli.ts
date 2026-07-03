@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { intro, outro, text, password, select, confirm, isCancel, cancel, note, log } from '@clack/prompts';
+import { nanoid } from 'nanoid';
 import { startServer, ServerConfig } from './server.js';
 import {
   buildConfigFromAnswers,
@@ -89,11 +90,19 @@ async function runInit(): Promise<void> {
   });
   if (isCancel(adminPassword)) bail();
 
+  const enableMcp = await confirm({
+    message: 'Setup also FlagForge MCP server? (lets AI agents manage flags)',
+    initialValue: false,
+  });
+  if (isCancel(enableMcp)) bail();
+  const mcpToken = enableMcp ? `ff_mcp_${nanoid(32)}` : undefined;
+
   const answers: WizardAnswers = {
     port: Number(portRaw),
     storageType: storageType as 'sqlite' | 'json',
     storagePath: storagePath,
     adminPassword: adminPassword.trim() || undefined,
+    mcpToken,
   };
 
   const config = buildConfigFromAnswers(answers);
@@ -106,6 +115,21 @@ async function runInit(): Promise<void> {
   writeFileSync(envPath, renderEnvFile(config), 'utf8');
 
   await launch(config, envPath);
+
+  if (mcpToken) {
+    note(
+      `MCP endpoint: http://<host>:${config.port}/mcp\n` +
+      `Token (salvato in .env):\n  ${mcpToken}\n\n` +
+      `Config per il client MCP (sostituisci <host>):\n` +
+      JSON.stringify(
+        { mcpServers: { flagforge: { url: `http://<host>:${config.port}/mcp`, headers: { Authorization: `Bearer ${mcpToken}` } } } },
+        null,
+        2,
+      ),
+      'FlagForge MCP',
+    );
+  }
+
   outro('FlagForge è pronto. Buon feature-flagging!');
 }
 
@@ -123,6 +147,7 @@ async function runStart(): Promise<void> {
     storageType: (process.env.STORAGE_TYPE as 'sqlite' | 'json') || 'sqlite',
     storagePath: process.env.STORAGE_PATH || './data/flagforge.db',
     adminPassword: process.env.ADMIN_PASSWORD,
+    mcpToken: process.env.MCP_TOKEN,
   };
   await launch(config, envPath);
   outro('FlagForge è in esecuzione.');
