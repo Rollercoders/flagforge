@@ -355,12 +355,14 @@ Restart the server for the change to take effect.
 | Tool | Description |
 |------|-------------|
 | `list_projects` | List all projects |
-| `list_environments` | List environments for a project |
+| `list_environments` | List environments for a project, identified **by name** |
 | `list_flags` | List flags for a project + environment |
 | `set_flag` | Create or update a flag (upsert) |
 | `evaluate_flag` | Evaluate a flag for a given context; also returns a `reason` explaining the outcome (`disabled`, `targeting-miss`, `rollout-excluded`, `enabled`) |
 
 There is intentionally **no delete tool** — flag deletion is only available through the web app or the admin API.
+
+Environments are identified **by name**, not by id, across all of FlagForge. `list_environments` returns only `{ name }` for this reason — always pass that `name` as the `environment` argument to `list_flags`, `set_flag` and `evaluate_flag`. `set_flag` rejects unknown environment names with an error listing the valid ones instead of writing anything.
 
 ### Client configuration
 

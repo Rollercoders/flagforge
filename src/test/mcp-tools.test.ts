@@ -62,8 +62,14 @@ describe('buildTools', () => {
   it('list_environments NON espone la key ff_', async () => {
     const res = await tool(tools, 'list_environments').handler({ projectId: 'p1' });
     const envs = parse(res);
-    expect(envs).toEqual([{ id: 'e1', name: 'production' }]);
+    expect(envs).toEqual([{ name: 'production' }]);
     expect(JSON.stringify(envs)).not.toContain('ff_secret');
+  });
+
+  it('list_environments restituisce SOLO il name, non lʼid', async () => {
+    const res = await tool(tools, 'list_environments').handler({ projectId: 'p1' });
+    expect(parse(res)).toEqual([{ name: 'production' }]);
+    expect(JSON.stringify(res)).not.toContain('e1');
   });
 
   it('set_flag crea il flag quando non esiste', async () => {
@@ -89,6 +95,26 @@ describe('buildTools', () => {
     });
     expect(res.isError).toBe(true);
     expect(storage.flags).toHaveLength(0);
+  });
+
+  it('set_flag rifiuta un environment inesistente (es. un id al posto del name) senza scrivere nulla', async () => {
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'e1', key: 'f', name: 'F', enabled: true,
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain('production');
+    expect(storage.flags).toHaveLength(0);
+  });
+
+  it('set_flag con environment esistente continua a creare/aggiornare correttamente', async () => {
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'f', name: 'F', enabled: true,
+    });
+    const flag = parse(res);
+    expect(res.isError).toBeUndefined();
+    expect(flag.key).toBe('f');
+    expect(flag.environment).toBe('production');
+    expect(storage.flags).toHaveLength(1);
   });
 
   it('list_flags ritorna i flag del contesto', async () => {

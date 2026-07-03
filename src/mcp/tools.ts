@@ -45,12 +45,13 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     },
     {
       name: 'list_environments',
-      description: 'Elenca gli environment di un progetto (id e nome). Non espone le API key.',
+      description:
+        'Elenca gli environment (per nome) di un progetto. Non espone le API key. Usa il campo `name` come valore di `environment` negli altri tool (list_flags/set_flag/evaluate_flag).',
       inputSchema: { projectId: z.string() },
       handler: async (args) => {
         const projectId = args.projectId as string;
         const envs = await storage.getEnvironmentsByProject(projectId);
-        return ok(envs.map(e => ({ id: e.id, name: e.name })));
+        return ok(envs.map(e => ({ name: e.name })));
       },
     },
     {
@@ -87,6 +88,16 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
         const projectId = args.projectId as string;
         const environment = args.environment as string;
         const key = args.key as string;
+
+        const envs = await storage.getEnvironmentsByProject(projectId);
+        const envNames = envs.map(e => e.name);
+        if (!envNames.includes(environment)) {
+          return fail(
+            `Environment "${environment}" inesistente per il progetto. Environment validi: ${envNames.join(', ') || '(nessuno)'}. ` +
+            `Usa il campo "name" restituito da list_environments.`
+          );
+        }
+
         const existing = await storage.getFlag(projectId, key, environment);
 
         if (!existing) {
