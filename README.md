@@ -143,6 +143,10 @@ The drawer on the right lets you configure:
 
 At the bottom of the editor there's a **"Test this flag"** panel. Enter a `userId` and optional attributes to see in real time whether the current configuration would return `true` or `false` for that context — without making any API call.
 
+### Realtime updates
+
+The UI automatically reflects changes when a flag is modified — whether from another user editing the same flag in the web app or from an AI agent via the MCP server. Updates are delivered instantly through a Server-Sent Events (`/admin/events`) channel, keeping your session in sync without requiring a page reload.
+
 ## Usage
 
 ### 1. Create an API Key
