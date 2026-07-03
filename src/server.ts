@@ -18,6 +18,9 @@ import { createAdminFlagsRouter } from './routes/adminFlags.js';
 import { createAdminEvaluateRouter } from './routes/adminEvaluate.js';
 import { createMcpRouter } from './mcp/server.js';
 import { nanoid } from 'nanoid';
+import { FlagChangeBus } from './events/flagChangeBus.js';
+import { EventEmittingStorage } from './storage/eventEmittingStorage.js';
+import { createAdminEventsRouter } from './routes/adminEvents.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -71,18 +74,21 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   app.use(express.json());
   app.use(cookieParser());
 
-  let storage: Storage;
+  let realStorage: Storage;
   if (config.storageType === 'json') {
-    storage = new JsonStorage(config.storagePath);
+    realStorage = new JsonStorage(config.storagePath);
   } else {
-    storage = new SqliteStorage(config.storagePath);
+    realStorage = new SqliteStorage(config.storagePath);
   }
 
-  await storage.initialize();
+  await realStorage.initialize();
   console.log(`✓ Storage initialized (${config.storageType})`);
 
-  await storage.bootstrapAdminKey();
+  await realStorage.bootstrapAdminKey();
   console.log('✓ UI admin key ready');
+
+  const flagChangeBus = new FlagChangeBus();
+  const storage: Storage = new EventEmittingStorage(realStorage, flagChangeBus);
 
   const evaluator = new FlagEvaluator();
   const authMiddleware = createAuthMiddleware(storage);
@@ -96,6 +102,7 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   app.use('/admin', requireAdminSession(sessions), createProjectsRouter(storage));
   app.use('/admin/flags', requireAdminSession(sessions), createAdminFlagsRouter(storage));
   app.use('/admin/evaluate', requireAdminSession(sessions), createAdminEvaluateRouter(storage, evaluator));
+  app.use('/admin/events', requireAdminSession(sessions), createAdminEventsRouter(flagChangeBus));
   app.use('/api/flags', authMiddleware, createFlagsRouter(storage));
   app.use('/api/evaluate', authMiddleware, createEvaluateRouter(storage, evaluator));
 
