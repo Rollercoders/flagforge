@@ -60,3 +60,18 @@ describe('renderEnvFile', () => {
     expect(env).toContain('ADMIN_PASSWORD=ff_admin_x');
   });
 });
+
+describe('renderEnvFile con mcpToken', () => {
+  it('include MCP_TOKEN quando presente', () => {
+    const env = renderEnvFile({ port: 6789, storageType: 'sqlite', storagePath: './data/flagforge.db', mcpToken: 'ff_mcp_abc' });
+    expect(env).toContain('MCP_TOKEN=ff_mcp_abc');
+  });
+  it('omette MCP_TOKEN quando assente', () => {
+    const env = renderEnvFile({ port: 6789, storageType: 'sqlite', storagePath: './data/flagforge.db' });
+    expect(env).not.toContain('MCP_TOKEN');
+  });
+  it('buildConfigFromAnswers propaga mcpToken', () => {
+    const cfg = buildConfigFromAnswers({ port: 1, storageType: 'json', storagePath: 'x', mcpToken: 't' });
+    expect(cfg.mcpToken).toBe('t');
+  });
+});

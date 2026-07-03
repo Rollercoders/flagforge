@@ -143,6 +143,10 @@ The drawer on the right lets you configure:
 
 At the bottom of the editor there's a **"Test this flag"** panel. Enter a `userId` and optional attributes to see in real time whether the current configuration would return `true` or `false` for that context — without making any API call.
 
+### Realtime updates
+
+The UI automatically reflects changes when a flag is modified — whether from another user editing the same flag in the web app or from an AI agent via the MCP server. Updates are delivered instantly through a Server-Sent Events (`/admin/events`) channel, keeping your session in sync without requiring a page reload.
+
 ## Usage
 
 ### 1. Create an API Key
@@ -330,6 +334,60 @@ Response:
 |--------|----------|-------------|
 | POST | `/api/evaluate/:key` | Evaluate a single flag |
 | POST | `/api/evaluate` | Batch evaluate multiple flags |
+
+## MCP Server
+
+FlagForge ships with an opt-in [Model Context Protocol](https://modelcontextprotocol.io) endpoint that lets AI agents (Claude, Cursor, etc.) manage your feature flags directly.
+
+The endpoint is mounted at `/mcp` and is **disabled by default**. It is only mounted when an `MCP_TOKEN` is configured.
+
+### Enabling it
+
+Either:
+
+- Answer "yes" to "Setup also FlagForge MCP server?" during `flagforge init` — a token is generated for you and saved to `.env`, and a ready-to-paste client config is printed.
+- Or set `MCP_TOKEN` manually in `.env`:
+
+```env
+MCP_TOKEN=ff_mcp_your_token_here
+```
+
+Restart the server for the change to take effect.
+
+### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all projects |
+| `list_environments` | List environments for a project, identified **by name** |
+| `list_flags` | List flags for a project + environment |
+| `set_flag` | Create or update a flag (upsert) |
+| `evaluate_flag` | Evaluate a flag for a given context; also returns a `reason` explaining the outcome (`disabled`, `targeting-miss`, `rollout-excluded`, `enabled`) |
+
+There is intentionally **no delete tool** — flag deletion is only available through the web app or the admin API.
+
+Environments are identified **by name**, not by id, across all of FlagForge. `list_environments` returns only `{ name }` for this reason — always pass that `name` as the `environment` argument to `list_flags`, `set_flag` and `evaluate_flag`. `set_flag` rejects unknown environment names with an error listing the valid ones instead of writing anything.
+
+### Client configuration
+
+Point your MCP-compatible client at the endpoint, sending the token as a bearer `Authorization` header:
+
+```json
+{
+  "mcpServers": {
+    "flagforge": {
+      "url": "http://<host>:<port>/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-mcp-token>"
+      }
+    }
+  }
+}
+```
+
+### Security note
+
+The MCP endpoint is opt-in and the token grants **full read/write control over all flags** (across all projects and environments) — treat it like an admin credential. Do not share it or commit it to source control.
 
 ## Client Integration Example
 

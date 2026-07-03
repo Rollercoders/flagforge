@@ -312,4 +312,72 @@ describe('FlagEvaluator', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('explain', () => {
+    it('should return disabled reason when flag is disabled', () => {
+      const flag = createFlag({ enabled: false });
+      const context: FlagEvaluationContext = { userId: 'user-1' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: false, reason: 'disabled' });
+    });
+
+    it('should return targeting-miss reason when targeting does not match', () => {
+      const flag = createFlag({
+        enabled: true,
+        targeting: { userIds: ['a'] }
+      });
+      const context: FlagEvaluationContext = { userId: 'b' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: false, reason: 'targeting-miss' });
+    });
+
+    it('should return enabled reason when targeting matches and no rollout', () => {
+      const flag = createFlag({
+        enabled: true,
+        targeting: { userIds: ['a'] }
+      });
+      const context: FlagEvaluationContext = { userId: 'a' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+    });
+
+    it('should return rollout-excluded reason when rollout percentage is 0', () => {
+      const flag = createFlag({
+        enabled: true,
+        rollout: { percentage: 0 }
+      });
+      const context: FlagEvaluationContext = { userId: 'x' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: false, reason: 'rollout-excluded' });
+    });
+
+    it('should return enabled reason when rollout percentage is 100', () => {
+      const flag = createFlag({
+        enabled: true,
+        rollout: { percentage: 100 }
+      });
+      const context: FlagEvaluationContext = { userId: 'x' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+    });
+
+    it('should return enabled reason when flag has no targeting nor rollout', () => {
+      const flag = createFlag({ enabled: true });
+      const context: FlagEvaluationContext = { userId: 'x' };
+
+      const result = evaluator.explain(flag, context);
+
+      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+    });
+  });
 });

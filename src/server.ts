@@ -16,7 +16,11 @@ import { createAuthRouter } from './routes/auth.js';
 import { createProjectsRouter } from './routes/projects.js';
 import { createAdminFlagsRouter } from './routes/adminFlags.js';
 import { createAdminEvaluateRouter } from './routes/adminEvaluate.js';
+import { createMcpRouter } from './mcp/server.js';
 import { nanoid } from 'nanoid';
+import { FlagChangeBus } from './events/flagChangeBus.js';
+import { EventEmittingStorage } from './storage/eventEmittingStorage.js';
+import { createAdminEventsRouter } from './routes/adminEvents.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -25,6 +29,15 @@ export interface ServerConfig {
   storageType: 'sqlite' | 'json';
   storagePath: string;
   adminPassword?: string;
+  mcpToken?: string;
+}
+
+/**
+ * Determina se l'endpoint MCP va montato: solo se il token è presente e non vuoto
+ * (dopo trim). Funzione pura, estratta per essere testabile senza avviare un listener reale.
+ */
+export function shouldMountMcp(token?: string): boolean {
+  return typeof token === 'string' && token.trim() !== '';
 }
 
 export interface StartResult {
@@ -61,18 +74,21 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   app.use(express.json());
   app.use(cookieParser());
 
-  let storage: Storage;
+  let realStorage: Storage;
   if (config.storageType === 'json') {
-    storage = new JsonStorage(config.storagePath);
+    realStorage = new JsonStorage(config.storagePath);
   } else {
-    storage = new SqliteStorage(config.storagePath);
+    realStorage = new SqliteStorage(config.storagePath);
   }
 
-  await storage.initialize();
+  await realStorage.initialize();
   console.log(`✓ Storage initialized (${config.storageType})`);
 
-  await storage.bootstrapAdminKey();
+  await realStorage.bootstrapAdminKey();
   console.log('✓ UI admin key ready');
+
+  const flagChangeBus = new FlagChangeBus();
+  const storage: Storage = new EventEmittingStorage(realStorage, flagChangeBus);
 
   const evaluator = new FlagEvaluator();
   const authMiddleware = createAuthMiddleware(storage);
@@ -86,8 +102,15 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
   app.use('/admin', requireAdminSession(sessions), createProjectsRouter(storage));
   app.use('/admin/flags', requireAdminSession(sessions), createAdminFlagsRouter(storage));
   app.use('/admin/evaluate', requireAdminSession(sessions), createAdminEvaluateRouter(storage, evaluator));
+  app.use('/admin/events', requireAdminSession(sessions), createAdminEventsRouter(flagChangeBus));
   app.use('/api/flags', authMiddleware, createFlagsRouter(storage));
   app.use('/api/evaluate', authMiddleware, createEvaluateRouter(storage, evaluator));
+
+  const mcpToken = config.mcpToken ?? process.env.MCP_TOKEN;
+  if (shouldMountMcp(mcpToken)) {
+    app.use('/mcp', createMcpRouter(storage, evaluator, mcpToken as string));
+    console.log('✓ MCP endpoint mounted at /mcp');
+  }
 
   const uiDistPath = join(__dirname, '../ui/dist');
   app.use(express.static(uiDistPath));
