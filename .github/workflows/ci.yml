@@ -29,3 +29,6 @@ jobs:
 
       - name: Run tests
         run: yarn test
+
+      - name: Security audit
+        run: yarn npm audit --environment production --severity high
