@@ -102,6 +102,25 @@ describe('Admin Flags Routes', () => {
     expect(res.body.enabled).toBe(true);
   });
 
+  it('should clear targeting when patched with null', async () => {
+    await request(app)
+      .post('/admin/flags')
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ key: 'flag-t', name: 'Flag T', projectId, environment: envName, targeting: { userIds: ['u1'] } });
+
+    const res = await request(app)
+      .patch(`/admin/flags/flag-t?projectId=${projectId}&environment=${envName}`)
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ targeting: null });
+    expect(res.status).toBe(200);
+    expect(res.body.targeting).toBeUndefined();
+
+    const get = await request(app)
+      .get(`/admin/flags/flag-t?projectId=${projectId}&environment=${envName}`)
+      .set('Cookie', `rf_session=${sessionToken}`);
+    expect(get.body.targeting).toBeUndefined();
+  });
+
   it('should delete a flag', async () => {
     await request(app)
       .post('/admin/flags')
