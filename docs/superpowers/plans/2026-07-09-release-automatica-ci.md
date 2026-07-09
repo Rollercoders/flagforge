@@ -327,5 +327,5 @@ Expected: workflow verde, nessun tag/publish per il commit `ci:`.
 ## Note operative post-piano
 
 - **Prova reale del rilascio:** al primo merge di una PR `fix:` o `feat:` dopo questo, verificare in Actions che `release` calcoli la versione, pubblichi su npm e crei il tag `vX.Y.Z`. Poi `npm view flagforge version` deve mostrare la nuova versione.
-- **Recovery se publish OK ma tag KO:** il tag si può creare a mano (`git tag vX.Y.Z <sha> && git push origin vX.Y.Z`). Se il tag c'è ma il publish è fallito, ri-lanciare il job (npm rifiuta una versione già pubblicata, quindi è sicuro).
+- **Recovery se publish OK ma tag KO:** il tag si può creare a mano (`git tag vX.Y.Z <sha> && git push origin vX.Y.Z`). Se il tag c'è ma il publish è fallito, ri-lanciare il job (npm rifiuta una versione già pubblicata, quindi è sicuro). L'ordine nel job è publish PRIMA del tag: quindi l'esistenza del tag `vX.Y.Z` implica che il publish di quella versione è già andato a buon fine, e un re-run dopo che il tag è stato creato calcolerà semplicemente la versione successiva (non ritenterà quella già taggata).
 - **Aggiornamento istanza server:** invariato e manuale (comandi pm2, vedi memoria di progetto).

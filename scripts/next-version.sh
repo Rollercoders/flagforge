@@ -16,15 +16,26 @@ last="${last%%-*}"
 last="${last%%+*}"
 [ -z "$last" ] && last="0.0.0"
 
+# Valida che la base sia una tripla numerica valida: un tag malformato
+# (es. "vfoo") non deve produrre output-spazzatura silenzioso.
+if ! printf '%s' "$last" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo "next-version.sh: LAST_TAG malformato, base non valida: '$last'" >&2
+  exit 1
+fi
+
 IFS='.' read -r major minor patch <<< "$last"
 major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
 
 # Determina il tipo di bump dal messaggio del commit.
 # Il breaking change (! prima dei due punti, con scope opzionale, su
-# qualsiasi tipo, oppure BREAKING CHANGE nel corpo) va controllato PRIMA
-# di feat:/fix:, altrimenti "feat!:" verrebbe intercettato da "feat:".
+# qualsiasi tipo) va controllato PRIMA di feat:/fix:, altrimenti "feat!:"
+# verrebbe intercettato da "feat:". Nota: il chiamante passa solo il subject
+# del commit, quindi "BREAKING CHANGE" (che vive nel footer per Conventional
+# Commits) non va controllato qui: non comparirebbe mai legittimamente nel
+# subject, e una menzione innocua (es. "docs: nota su BREAKING CHANGE")
+# causerebbe un major spurio.
 bump=""
-if printf '%s' "$msg" | grep -qE '^[a-zA-Z]+(\(.+\))?!:' || printf '%s' "$msg" | grep -qE 'BREAKING CHANGE'; then
+if printf '%s' "$msg" | grep -qE '^[a-zA-Z]+(\(.+\))?!:'; then
   bump="major"
 elif printf '%s' "$msg" | grep -qE '^feat(\(.+\))?:'; then
   bump="minor"
