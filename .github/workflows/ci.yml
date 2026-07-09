@@ -32,3 +32,63 @@ jobs:
 
       - name: Security audit
         run: yarn npm audit --environment production --severity high
+
+  release:
+    needs: test
+    # Solo su push a develop (mai su PR)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write   # push del tag
+      id-token: write   # OIDC per npm Trusted Publisher
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Aggiorna npm (OIDC publish richiede >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Calcola prossima versione
+        id: ver
+        run: |
+          LAST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          COMMIT_MSG="$(git log -1 --pretty=%s)"
+          NEXT="$(LAST_TAG="$LAST_TAG" COMMIT_MSG="$COMMIT_MSG" bash scripts/next-version.sh)"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          if [ -z "$NEXT" ]; then
+            echo "Commit non di rilascio ($COMMIT_MSG) — skip release."
+          else
+            echo "Prossima versione: $NEXT (da $LAST_TAG)"
+          fi
+
+      - name: Install dependencies
+        if: steps.ver.outputs.next != ''
+        run: yarn install --immutable
+
+      - name: Bump versione nel runner (non committato)
+        if: steps.ver.outputs.next != ''
+        run: npm version "${{ steps.ver.outputs.next }}" --no-git-tag-version --allow-same-version
+
+      - name: Publish su npm (OIDC)
+        if: steps.ver.outputs.next != ''
+        run: npm publish
+
+      - name: Crea e pusha il tag
+        if: steps.ver.outputs.next != ''
+        run: |
+          git tag "v${{ steps.ver.outputs.next }}"
+          git push origin "v${{ steps.ver.outputs.next }}"
