@@ -29,10 +29,10 @@ export interface CreateFlagPayload {
 
 export interface UpdateFlagPayload {
   name?: string;
-  description?: string;
+  description?: string | null;
   enabled?: boolean;
-  targeting?: Flag['targeting'];
-  rollout?: Flag['rollout'];
+  targeting?: Flag['targeting'] | null;
+  rollout?: Flag['rollout'] | null;
 }
 
 export async function getFlags(projectId: string, environment: string): Promise<Flag[]> {

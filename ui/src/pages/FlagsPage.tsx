@@ -216,12 +216,16 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
     try {
       const payload = formToPayload(form);
       if (editingFlag) {
+        // In modifica inviamo `null` (non `undefined`) per i campi svuotati:
+        // `JSON.stringify` scarta le chiavi `undefined`, e una PATCH senza la
+        // chiave viene interpretata come "non modificare", lasciando il vecchio
+        // valore in DB. `null` invece sopravvive alla serializzazione e azzera.
         const updates: UpdateFlagPayload = {
           name: payload.name,
-          description: payload.description,
+          description: payload.description ?? null,
           enabled: form.enabled,
-          targeting: payload.targeting,
-          rollout: payload.rollout,
+          targeting: payload.targeting ?? null,
+          rollout: payload.rollout ?? null,
         };
         await updateFlag(editingFlag.key, projectId, environment, updates);
         showToast('Flag updated');

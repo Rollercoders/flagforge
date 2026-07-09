@@ -153,6 +153,32 @@ describe('Flags Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.rollout.percentage).toBe(75);
     });
+
+    it('should clear targeting when sent as null', async () => {
+      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: { userIds: ['u1', 'u2'] } });
+      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: null });
+      expect(response.status).toBe(200);
+      expect(response.body.targeting).toBeUndefined();
+      const get = await request(app).get('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`);
+      expect(get.body.targeting).toBeUndefined();
+    });
+
+    it('should clear rollout when sent as null', async () => {
+      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ rollout: { percentage: 75 } });
+      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ rollout: null });
+      expect(response.status).toBe(200);
+      expect(response.body.rollout).toBeUndefined();
+      const get = await request(app).get('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`);
+      expect(get.body.rollout).toBeUndefined();
+    });
+
+    it('should not touch targeting when field is absent from patch', async () => {
+      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: { userIds: ['u1'] } });
+      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ name: 'Renamed' });
+      expect(response.status).toBe(200);
+      expect(response.body.name).toBe('Renamed');
+      expect(response.body.targeting.userIds).toEqual(['u1']);
+    });
   });
 
   describe('DELETE /api/flags/:key', () => {
