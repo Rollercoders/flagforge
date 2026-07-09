@@ -10,12 +10,21 @@ msg="${COMMIT_MSG:-}"
 last="${last#v}"
 [ -z "$last" ] && last="0.0.0"
 
+# Scarta eventuali suffissi di pre-release/build (-rc.1, +build) prima
+# dell'aritmetica, altrimenti "read" produce campi non numerici.
+last="${last%%-*}"
+last="${last%%+*}"
+[ -z "$last" ] && last="0.0.0"
+
 IFS='.' read -r major minor patch <<< "$last"
 major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
 
 # Determina il tipo di bump dal messaggio del commit.
+# Il breaking change (! prima dei due punti, con scope opzionale, su
+# qualsiasi tipo, oppure BREAKING CHANGE nel corpo) va controllato PRIMA
+# di feat:/fix:, altrimenti "feat!:" verrebbe intercettato da "feat:".
 bump=""
-if printf '%s' "$msg" | grep -qE '^feat!:' || printf '%s' "$msg" | grep -qE 'BREAKING CHANGE'; then
+if printf '%s' "$msg" | grep -qE '^[a-zA-Z]+(\(.+\))?!:' || printf '%s' "$msg" | grep -qE 'BREAKING CHANGE'; then
   bump="major"
 elif printf '%s' "$msg" | grep -qE '^feat(\(.+\))?:'; then
   bump="minor"

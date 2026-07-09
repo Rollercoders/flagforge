@@ -26,4 +26,11 @@ check "commit dependabot non rilascia" "v0.2.1" "chore(deps): bump x"  ""
 check "nessun tag parte da 0.0.0"  ""       "fix: primo (#1)"          "0.0.1"
 check "nessun tag + feat"          "v0.0.0" "feat: primo (#1)"         "0.1.0"
 
+check "feat(scope)! bumpa major"   "v0.2.1" "feat(scope)!: rottura (#23)" "1.0.0"
+check "fix! bumpa major"           "v0.2.1" "fix!: rottura (#24)"      "1.0.0"
+check "refactor! bumpa major"      "v0.2.1" "refactor!: rottura (#25)" "1.0.0"
+check "feat(api) con scope bumpa minor" "v0.2.1" "feat(api): cosa (#26)" "0.3.0"
+check "fix(core) con scope bumpa patch" "v0.2.1" "fix(core): bug (#27)" "0.2.2"
+check "tag pre-release + fix"      "v0.2.1-rc.1" "fix: x (#28)"        "0.2.2"
+
 exit $fail
