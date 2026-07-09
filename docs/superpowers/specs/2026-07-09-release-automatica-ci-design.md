@@ -76,22 +76,39 @@ Script bash (~40 righe) che:
 
 ### `.github/workflows/ci.yml` (modifica)
 - Il job `test` resta invariato.
+- Il job `release` viene aggiunto **nello stesso file `ci.yml`** (non un file
+  separato). Questo determina il "workflow filename" da configurare in npm Trusted
+  Publisher: **`ci.yml`**.
 - Nuovo job `release`:
   - `needs: test`
   - `if:` limitato a push su `develop` (non PR)
-  - `permissions: contents: write` (per pushare il tag col `GITHUB_TOKEN` di default)
+  - `permissions: { contents: write, id-token: write }`
+    - `contents: write` → push del tag col `GITHUB_TOKEN` di default
+    - `id-token: write` → token OIDC per il publish npm via Trusted Publisher
   - `concurrency: release` (serializza release concorrenti da merge ravvicinati)
   - checkout con `fetch-depth: 0` e `fetch-tags: true` (serve la storia dei tag per
     `git describe`)
+  - `setup-node` con `registry-url: https://registry.npmjs.org` e **npm ≥ 11.5.1**
+    (requisito per il publish OIDC nativo)
   - invoca `scripts/next-version.sh`; se "no release" → termina;
   - altrimenti: bump in runner, publish, tag+push.
 
-## Segreti e permessi
+## Autenticazione e permessi
 
-- **`NPM_TOKEN`**: automation token npm generato dall'utente su npmjs.com, salvato
-  nei GitHub Secrets del repo. Usato per `npm publish` non interattivo
-  (`NODE_AUTH_TOKEN` + `.npmrc` o `setup-node` con `registry-url`).
-- **Push del tag**: `GITHUB_TOKEN` di default della Action + `permissions: contents: write`.
+Il publish su npm usa **Trusted Publisher (OIDC)**, non un token statico. npm si
+fida della GitHub Action tramite identità OIDC: nessun segreto da generare, salvare
+o ruotare.
+
+- **Configurazione npm (una tantum, lato utente)**: sul package `flagforge` su
+  npmjs.com → Settings → Trusted Publisher → GitHub Actions, con:
+  - Organization/user: `Rollercoders`
+  - Repository: `flagforge`
+  - Workflow filename: `ci.yml`
+  - Environment name: *(vuoto)*
+- **Nel workflow**: `permissions: id-token: write` abilita lo scambio OIDC; il
+  publish resta un semplice `npm publish` (npm ≥ 11.5.1 fa lo scambio nativamente).
+  Nessun `NODE_AUTH_TOKEN`/`NPM_TOKEN`.
+- **Push del tag**: `GITHUB_TOKEN` di default + `permissions: contents: write`.
   Nessun token custom.
 
 ## Rischi e mitigazioni
@@ -115,6 +132,7 @@ Script bash (~40 righe) che:
 ## Cosa cambia per l'utente
 
 - **Prima**: 5 passaggi manuali (PR di bump, merge, tag, `npm login`, `npm publish`).
-- **Dopo**: premere **Squash and Merge**. Il resto è automatico.
+- **Dopo**: premere **Squash and Merge**. Il resto è automatico. Nessun token npm
+  da gestire (Trusted Publisher/OIDC).
 - L'aggiornamento dell'istanza sul server (comandi pm2) resta manuale: gira sul
   server, fuori dalla portata della CI.
