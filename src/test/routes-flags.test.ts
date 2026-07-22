@@ -37,52 +37,26 @@ describe('Flags Routes', () => {
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
   });
 
-  describe('POST /api/flags', () => {
-    it('should create a new flag', async () => {
+  // Le API key di environment sono di sola lettura: la scrittura sui flag è
+  // vietata (403) e resta possibile solo via sessione admin (UI).
+  describe('POST /api/flags (read-only API key)', () => {
+    it('should reject flag creation with 403', async () => {
       const response = await request(app)
         .post('/api/flags')
         .set('Authorization', `Bearer ${apiKey}`)
         .send({ key: 'new-feature', name: 'New Feature', description: 'A new feature' });
-      expect(response.status).toBe(201);
-      expect(response.body.key).toBe('new-feature');
-      expect(response.body.name).toBe('New Feature');
-      expect(response.body.enabled).toBe(false);
-      expect(response.body.environment).toBe('test');
-      expect(response.body.projectId).toBe(projectId);
+      expect(response.status).toBe(403);
     });
 
-    it('should reject request without key', async () => {
-      const response = await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ name: 'New Feature' });
-      expect(response.status).toBe(400);
+    it('should reject with 403 even when the body is incomplete', async () => {
+      const response = await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ name: 'No Key' });
+      expect(response.status).toBe(403);
     });
 
-    it('should reject request without name', async () => {
-      const response = await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ key: 'feat' });
-      expect(response.status).toBe(400);
-    });
-
-    it('should reject duplicate flag key in same project', async () => {
-      await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ key: 'dup', name: 'Dup' });
-      const response = await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ key: 'dup', name: 'Dup 2' });
-      expect(response.status).toBe(409);
-    });
-
-    it('should create flag with targeting', async () => {
-      const response = await request(app)
-        .post('/api/flags')
-        .set('Authorization', `Bearer ${apiKey}`)
-        .send({ key: 'targeted', name: 'Targeted', targeting: { userIds: ['u1', 'u2'] } });
-      expect(response.status).toBe(201);
-      expect(response.body.targeting.userIds).toEqual(['u1', 'u2']);
-    });
-
-    it('should create flag with rollout', async () => {
-      const response = await request(app)
-        .post('/api/flags')
-        .set('Authorization', `Bearer ${apiKey}`)
-        .send({ key: 'rollout', name: 'Rollout', rollout: { percentage: 50 } });
-      expect(response.status).toBe(201);
-      expect(response.body.rollout.percentage).toBe(50);
+    it('should not create the flag in storage', async () => {
+      await request(app).post('/api/flags').set('Authorization', `Bearer ${apiKey}`).send({ key: 'blocked', name: 'Blocked' });
+      const flag = await storage.getFlag(projectId, 'blocked', 'test');
+      expect(flag).toBeNull();
     });
   });
 
@@ -125,77 +99,48 @@ describe('Flags Routes', () => {
     });
   });
 
-  describe('PATCH /api/flags/:key', () => {
+  describe('PATCH /api/flags/:key (read-only API key)', () => {
     beforeEach(async () => {
       await storage.createFlag({ projectId, key: 'update-flag', name: 'Update Flag', enabled: false, environment: 'test' });
     });
 
-    it('should update a flag', async () => {
+    it('should reject flag update with 403', async () => {
       const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ enabled: true, name: 'Updated' });
-      expect(response.status).toBe(200);
-      expect(response.body.enabled).toBe(true);
-      expect(response.body.name).toBe('Updated');
+      expect(response.status).toBe(403);
     });
 
-    it('should return 404 for non-existent flag', async () => {
+    it('should reject with 403 even for a non-existent flag (guard runs before lookup)', async () => {
       const response = await request(app).patch('/api/flags/nope').set('Authorization', `Bearer ${apiKey}`).send({ enabled: true });
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(403);
     });
 
-    it('should update targeting', async () => {
-      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: { userIds: ['u1', 'u2'], attributes: { plan: ['premium'] } } });
-      expect(response.status).toBe(200);
-      expect(response.body.targeting.userIds).toEqual(['u1', 'u2']);
-    });
-
-    it('should update rollout', async () => {
-      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ rollout: { percentage: 75 } });
-      expect(response.status).toBe(200);
-      expect(response.body.rollout.percentage).toBe(75);
-    });
-
-    it('should clear targeting when sent as null', async () => {
-      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: { userIds: ['u1', 'u2'] } });
-      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: null });
-      expect(response.status).toBe(200);
-      expect(response.body.targeting).toBeUndefined();
-      const get = await request(app).get('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`);
-      expect(get.body.targeting).toBeUndefined();
-    });
-
-    it('should clear rollout when sent as null', async () => {
-      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ rollout: { percentage: 75 } });
-      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ rollout: null });
-      expect(response.status).toBe(200);
-      expect(response.body.rollout).toBeUndefined();
-      const get = await request(app).get('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`);
-      expect(get.body.rollout).toBeUndefined();
-    });
-
-    it('should not touch targeting when field is absent from patch', async () => {
-      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ targeting: { userIds: ['u1'] } });
-      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ name: 'Renamed' });
-      expect(response.status).toBe(200);
-      expect(response.body.name).toBe('Renamed');
-      expect(response.body.targeting.userIds).toEqual(['u1']);
+    it('should not modify the flag in storage', async () => {
+      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${apiKey}`).send({ enabled: true, name: 'Updated' });
+      const flag = await storage.getFlag(projectId, 'update-flag', 'test');
+      expect(flag?.enabled).toBe(false);
+      expect(flag?.name).toBe('Update Flag');
     });
   });
 
-  describe('DELETE /api/flags/:key', () => {
+  describe('DELETE /api/flags/:key (read-only API key)', () => {
     beforeEach(async () => {
       await storage.createFlag({ projectId, key: 'del-flag', name: 'Delete Flag', enabled: true, environment: 'test' });
     });
 
-    it('should delete a flag', async () => {
+    it('should reject flag deletion with 403', async () => {
       const response = await request(app).delete('/api/flags/del-flag').set('Authorization', `Bearer ${apiKey}`);
-      expect(response.status).toBe(204);
-      const get = await request(app).get('/api/flags/del-flag').set('Authorization', `Bearer ${apiKey}`);
-      expect(get.status).toBe(404);
+      expect(response.status).toBe(403);
     });
 
-    it('should return 404 for non-existent flag', async () => {
+    it('should reject with 403 even for a non-existent flag (guard runs before lookup)', async () => {
       const response = await request(app).delete('/api/flags/nope').set('Authorization', `Bearer ${apiKey}`);
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(403);
+    });
+
+    it('should not delete the flag from storage', async () => {
+      await request(app).delete('/api/flags/del-flag').set('Authorization', `Bearer ${apiKey}`);
+      const flag = await storage.getFlag(projectId, 'del-flag', 'test');
+      expect(flag).not.toBeNull();
     });
   });
 
@@ -217,29 +162,26 @@ describe('Flags Routes', () => {
       expect(response.status).toBe(404);
     });
 
-    it('should return 404 when PATCH a flag from another project', async () => {
+    it('should return 403 when PATCH a flag from another project (write blocked)', async () => {
       const response = await request(app).patch('/api/flags/project-a-flag').set('Authorization', `Bearer ${projectBApiKey}`).send({ enabled: false });
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(403);
     });
 
-    it('should return 404 when DELETE a flag from another project', async () => {
+    it('should return 403 when DELETE a flag from another project (write blocked)', async () => {
       const response = await request(app).delete('/api/flags/project-a-flag').set('Authorization', `Bearer ${projectBApiKey}`);
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(403);
     });
   });
 
-  describe('Multi-environment flag creation', () => {
-    it('should create a flag visible in all environments of the project', async () => {
+  describe('Multi-environment flag visibility', () => {
+    it('should list a flag in all environments of the project', async () => {
       // Create a second environment for the test project
       const stagingEnv = await storage.createEnvironment({ projectId, name: 'staging' });
       const stagingApiKey = stagingEnv.key;
 
-      // Create a flag via the API using the first environment's key
-      const createResponse = await request(app)
-        .post('/api/flags')
-        .set('Authorization', `Bearer ${apiKey}`)
-        .send({ key: 'multi-env-flag', name: 'Multi Env Flag' });
-      expect(createResponse.status).toBe(201);
+      // Create a flag via storage (API keys are read-only); createFlag fans it
+      // out across all environments of the project.
+      await storage.createFlag({ projectId, key: 'multi-env-flag', name: 'Multi Env Flag', enabled: false, environment: 'test' });
 
       // Verify the flag appears when listing with the 'test' environment key
       const testListResponse = await request(app).get('/api/flags').set('Authorization', `Bearer ${apiKey}`);
