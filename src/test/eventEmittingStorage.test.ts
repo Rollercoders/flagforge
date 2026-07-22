@@ -3,7 +3,7 @@ import { EventEmittingStorage } from '../storage/eventEmittingStorage.js';
 import { FlagChangeBus, FlagChange } from '../events/flagChangeBus.js';
 import { Storage, Flag } from '../types.js';
 
-// FakeStorage minimale: implementa i metodi toccati dai test.
+// Minimal FakeStorage: implements only the methods touched by the tests.
 class FakeStorage implements Partial<Storage> {
   createFlagCalls: unknown[] = [];
   createFlagFanOut: Flag[] | null = null;
@@ -33,14 +33,14 @@ beforeEach(() => {
 });
 
 describe('EventEmittingStorage', () => {
-  it('createFlag emette {projectId, environment} dopo la scrittura e delega', async () => {
+  it('createFlag emits {projectId, environment} after writing and delegates', async () => {
     const result = await storage.createFlag({ projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'production' });
-    expect(result).toHaveLength(1);           // valore di ritorno dell'inner passato attraverso
-    expect(inner.createFlagCalls).toHaveLength(1); // delega avvenuta
+    expect(result).toHaveLength(1);           // inner's return value passed through
+    expect(inner.createFlagCalls).toHaveLength(1); // delegation happened
     expect(changes).toEqual([{ projectId: 'p1', environment: 'production' }]);
   });
 
-  it('createFlag con fan-out multi-environment emette un evento per ogni flag creato', async () => {
+  it('createFlag with multi-environment fan-out emits one event per created flag', async () => {
     inner.createFlagFanOut = [
       { id: 'f1', projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'staging', createdAt: 't', updatedAt: 't' },
       { id: 'f2', projectId: 'p1', key: 'k', name: 'N', enabled: false, environment: 'production', createdAt: 't', updatedAt: 't' },
@@ -53,17 +53,17 @@ describe('EventEmittingStorage', () => {
     ]);
   });
 
-  it('updateFlag emette usando projectId/environment del flag ritornato', async () => {
+  it('updateFlag emits using projectId/environment from the returned flag', async () => {
     await storage.updateFlag('f1', { enabled: false });
     expect(changes).toEqual([{ projectId: 'p1', environment: 'production' }]);
   });
 
-  it('deleteFlag emette {projectId}', async () => {
+  it('deleteFlag emits {projectId}', async () => {
     await storage.deleteFlag('p1', 'k');
     expect(changes).toEqual([{ projectId: 'p1' }]);
   });
 
-  it('i metodi di lettura NON emettono', async () => {
+  it('read methods do NOT emit', async () => {
     await storage.getAllProjects();
     expect(changes).toEqual([]);
   });

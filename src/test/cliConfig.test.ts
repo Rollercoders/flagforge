@@ -61,16 +61,16 @@ describe('renderEnvFile', () => {
   });
 });
 
-describe('renderEnvFile con mcpToken', () => {
-  it('include MCP_TOKEN quando presente', () => {
+describe('renderEnvFile with mcpToken', () => {
+  it('includes MCP_TOKEN when present', () => {
     const env = renderEnvFile({ port: 6789, storageType: 'sqlite', storagePath: './data/flagforge.db', mcpToken: 'ff_mcp_abc' });
     expect(env).toContain('MCP_TOKEN=ff_mcp_abc');
   });
-  it('omette MCP_TOKEN quando assente', () => {
+  it('omits MCP_TOKEN when absent', () => {
     const env = renderEnvFile({ port: 6789, storageType: 'sqlite', storagePath: './data/flagforge.db' });
     expect(env).not.toContain('MCP_TOKEN');
   });
-  it('buildConfigFromAnswers propaga mcpToken', () => {
+  it('buildConfigFromAnswers propagates mcpToken', () => {
     const cfg = buildConfigFromAnswers({ port: 1, storageType: 'json', storagePath: 'x', mcpToken: 't' });
     expect(cfg.mcpToken).toBe('t');
   });

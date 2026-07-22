@@ -243,8 +243,8 @@ describe('SqliteStorage', () => {
       const dir = path.dirname(legacyDbPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-      // Crea un DB con lo schema VECCHIO dei flag (senza type/value/default_value)
-      // e una riga già presente, simulando un'installazione pre-esistente.
+      // Create a DB with the OLD flags schema (without type/value/default_value)
+      // and a row already present, simulating a pre-existing installation.
       const legacyDb = new Database(legacyDbPath);
       legacyDb.exec(`
         CREATE TABLE flags (
