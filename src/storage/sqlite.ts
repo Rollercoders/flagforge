@@ -174,6 +174,8 @@ export class SqliteStorage implements Storage {
   }
 
   async getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> {
+    // empty tokens must never match an env with a default-empty key column
+    if (!token) return null;
     if (!this.db) throw new Error('Database not initialized');
     const byClient = this.db.prepare('SELECT * FROM environments WHERE key = ?').get(token) as any;
     if (byClient) return { environment: this.rowToEnvironment(byClient), role: 'client' };

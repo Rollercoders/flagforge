@@ -113,6 +113,8 @@ export class JsonStorage implements Storage {
   }
 
   async getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> {
+    // empty tokens must never match an env with a default-empty key column
+    if (!token) return null;
     const byClient = this.data.environments.find(e => e.key === token);
     if (byClient) return { environment: { ...byClient }, role: 'client' };
     const bySecret = this.data.environments.find(e => e.secretKey === token);

@@ -341,6 +341,10 @@ describe('SqliteStorage', () => {
       expect(await storage.getEnvironmentByAnyKey('ff_unknown')).toBeNull();
     });
 
+    it('returns null for an empty token', async () => {
+      expect(await storage.getEnvironmentByAnyKey('')).toBeNull();
+    });
+
     it('regenerates client and secret keys independently', async () => {
       const project = await storage.createProject({ name: 'regen-proj' });
       const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
