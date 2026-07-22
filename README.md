@@ -62,6 +62,18 @@ yarn build
 yarn start
 ```
 
+### Updating
+
+```bash
+flagforge update
+```
+
+Updates the global `flagforge` package to the latest version published on npm.
+If the update needs elevated permissions (global install owned by root), the
+command prints the exact commands to run as root instead of failing. It never
+restarts your service — restart it yourself with whatever process manager you
+use.
+
 ### Testing
 
 ```bash
