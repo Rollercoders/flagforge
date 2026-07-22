@@ -16,7 +16,8 @@ export function createAdminRouter(storage: Storage) {
 
   router.post('/environments/:envId/regenerate-key', async (req, res) => {
     try {
-      const env = await storage.regenerateEnvironmentKey(req.params.envId);
+      const role = req.body?.role === 'secret' ? 'secret' : 'client';
+      const env = await storage.regenerateEnvironmentKey(req.params.envId, role);
       res.json(env);
     } catch (_error: any) {
       if (_error.message === 'Environment not found') {

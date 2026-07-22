@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
-import { Storage, Flag, Project, Environment } from '../types.js';
+import { Storage, Flag, Project, Environment, ApiKeyRole } from '../types.js';
 import { normalizeFlagType } from '../flagValue.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,6 +26,7 @@ export class SqliteStorage implements Storage {
         project_id TEXT NOT NULL REFERENCES projects(id),
         name TEXT NOT NULL,
         key TEXT UNIQUE NOT NULL DEFAULT '',
+        secret_key TEXT DEFAULT '',
         created_at TEXT NOT NULL,
         UNIQUE(project_id, name)
       );
@@ -73,6 +74,23 @@ export class SqliteStorage implements Storage {
         // colonna già presente: no-op
       }
     }
+
+    // Idempotent migration: add the secret_key column if missing, then backfill.
+    try {
+      this.db.exec("ALTER TABLE environments ADD COLUMN secret_key TEXT DEFAULT ''");
+    } catch {
+      /* already present */
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_environments_secret_key ON environments(secret_key)');
+    await this.backfillSecretKeys();
+  }
+
+  async backfillSecretKeys(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db.prepare("SELECT id FROM environments WHERE secret_key IS NULL OR secret_key = ''").all() as any[];
+    for (const r of rows) {
+      this.db.prepare('UPDATE environments SET secret_key = ? WHERE id = ?').run(`ffs_${nanoid(32)}`, r.id);
+    }
   }
 
   async createProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
@@ -105,12 +123,13 @@ export class SqliteStorage implements Storage {
     })();
   }
 
-  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment> {
+  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key' | 'secretKey'>): Promise<Environment> {
     if (!this.db) throw new Error('Database not initialized');
     const id = nanoid();
     const key = `ff_${nanoid(32)}`;
+    const secretKey = `ffs_${nanoid(32)}`;
     const now = new Date().toISOString();
-    this.db.prepare('INSERT INTO environments (id, project_id, name, key, created_at) VALUES (?, ?, ?, ?, ?)').run(id, env.projectId, env.name, key, now);
+    this.db.prepare('INSERT INTO environments (id, project_id, name, key, secret_key, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, env.projectId, env.name, key, secretKey, now);
 
     // Auto-backfill: copy existing flag keys into the new environment
     const existingFlags = this.db.prepare(
@@ -125,7 +144,7 @@ export class SqliteStorage implements Storage {
         env.name, flag.targeting ?? null, flag.rollout ?? null, now, now);
     }
 
-    return { id, projectId: env.projectId, name: env.name, key, createdAt: now };
+    return { id, projectId: env.projectId, name: env.name, key, secretKey, createdAt: now };
   }
 
   async getEnvironmentsByProject(projectId: string): Promise<Environment[]> {
@@ -140,13 +159,29 @@ export class SqliteStorage implements Storage {
     return row ? this.rowToEnvironment(row) : null;
   }
 
-  async regenerateEnvironmentKey(envId: string): Promise<Environment> {
+  async regenerateEnvironmentKey(envId: string, role: ApiKeyRole): Promise<Environment> {
     if (!this.db) throw new Error('Database not initialized');
     const row = this.db.prepare('SELECT * FROM environments WHERE id = ?').get(envId) as any;
     if (!row) throw new Error('Environment not found');
-    const newKey = `ff_${nanoid(32)}`;
-    this.db.prepare('UPDATE environments SET key = ? WHERE id = ?').run(newKey, envId);
-    return this.rowToEnvironment({ ...row, key: newKey });
+    if (role === 'client') {
+      const newKey = `ff_${nanoid(32)}`;
+      this.db.prepare('UPDATE environments SET key = ? WHERE id = ?').run(newKey, envId);
+      return this.rowToEnvironment({ ...row, key: newKey });
+    }
+    const newSecret = `ffs_${nanoid(32)}`;
+    this.db.prepare('UPDATE environments SET secret_key = ? WHERE id = ?').run(newSecret, envId);
+    return this.rowToEnvironment({ ...row, secret_key: newSecret });
+  }
+
+  async getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> {
+    // empty tokens must never match an env with a default-empty key column
+    if (!token) return null;
+    if (!this.db) throw new Error('Database not initialized');
+    const byClient = this.db.prepare('SELECT * FROM environments WHERE key = ?').get(token) as any;
+    if (byClient) return { environment: this.rowToEnvironment(byClient), role: 'client' };
+    const bySecret = this.db.prepare('SELECT * FROM environments WHERE secret_key = ?').get(token) as any;
+    if (bySecret) return { environment: this.rowToEnvironment(bySecret), role: 'secret' };
+    return null;
   }
 
   async deleteEnvironment(id: string): Promise<void> {
@@ -261,7 +296,7 @@ export class SqliteStorage implements Storage {
   }
 
   private rowToEnvironment(row: any): Environment {
-    return { id: row.id, projectId: row.project_id, name: row.name, key: row.key, createdAt: row.created_at };
+    return { id: row.id, projectId: row.project_id, name: row.name, key: row.key, secretKey: row.secret_key ?? '', createdAt: row.created_at };
   }
 
   private rowToFlag(row: any): Flag {

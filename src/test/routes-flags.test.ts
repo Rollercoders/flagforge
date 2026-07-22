@@ -11,6 +11,7 @@ describe('Flags Routes', () => {
   let app: Express;
   let storage: SqliteStorage;
   let apiKey: string;
+  let secretApiKey: string;
   let projectId: string;
   const testDbPath = path.join(__dirname, '../../test-data/routes-test.db');
 
@@ -26,6 +27,7 @@ describe('Flags Routes', () => {
     projectId = project.id;
     const env = await storage.createEnvironment({ projectId, name: 'test' });
     apiKey = env.key;
+    secretApiKey = env.secretKey;
 
     app = express();
     app.use(express.json());
@@ -37,9 +39,9 @@ describe('Flags Routes', () => {
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
   });
 
-  // Le API key di environment sono di sola lettura: la scrittura sui flag è
-  // vietata (403) e resta possibile solo via sessione admin (UI).
-  describe('POST /api/flags (read-only API key)', () => {
+  // Client API keys are read-only: writing flags is forbidden (403) unless
+  // the request uses the secret API key for the environment.
+  describe('POST /api/flags (client API key)', () => {
     it('should reject flag creation with 403', async () => {
       const response = await request(app)
         .post('/api/flags')
@@ -60,6 +62,27 @@ describe('Flags Routes', () => {
     });
   });
 
+  describe('POST /api/flags (secret API key)', () => {
+    it('should create the flag and return 201', async () => {
+      const response = await request(app)
+        .post('/api/flags')
+        .set('Authorization', `Bearer ${secretApiKey}`)
+        .send({ key: 'new-feature', name: 'New Feature', description: 'A new feature' });
+      expect(response.status).toBe(201);
+      expect(response.body.key).toBe('new-feature');
+    });
+
+    it('should actually create the flag in storage', async () => {
+      await request(app)
+        .post('/api/flags')
+        .set('Authorization', `Bearer ${secretApiKey}`)
+        .send({ key: 'allowed', name: 'Allowed' });
+      const flag = await storage.getFlag(projectId, 'allowed', 'test');
+      expect(flag).not.toBeNull();
+      expect(flag?.name).toBe('Allowed');
+    });
+  });
+
   describe('GET /api/flags', () => {
     beforeEach(async () => {
       await storage.createFlag({ projectId, key: 'flag-1', name: 'Flag 1', enabled: true, environment: 'test' });
@@ -67,8 +90,14 @@ describe('Flags Routes', () => {
       await storage.createFlag({ projectId, key: 'flag-2', name: 'Flag 2', enabled: false, environment: 'test' });
     });
 
-    it('should return all flags for the environment', async () => {
+    it('should return all flags for the environment (client key)', async () => {
       const response = await request(app).get('/api/flags').set('Authorization', `Bearer ${apiKey}`);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(2);
+    });
+
+    it('should return all flags for the environment (secret key)', async () => {
+      const response = await request(app).get('/api/flags').set('Authorization', `Bearer ${secretApiKey}`);
       expect(response.status).toBe(200);
       expect(response.body).toHaveLength(2);
     });
@@ -87,8 +116,14 @@ describe('Flags Routes', () => {
       await storage.createFlag({ projectId, key: 'test-flag', name: 'Test Flag', enabled: true, environment: 'test' });
     });
 
-    it('should return a specific flag', async () => {
+    it('should return a specific flag (client key)', async () => {
       const response = await request(app).get('/api/flags/test-flag').set('Authorization', `Bearer ${apiKey}`);
+      expect(response.status).toBe(200);
+      expect(response.body.key).toBe('test-flag');
+    });
+
+    it('should return a specific flag (secret key)', async () => {
+      const response = await request(app).get('/api/flags/test-flag').set('Authorization', `Bearer ${secretApiKey}`);
       expect(response.status).toBe(200);
       expect(response.body.key).toBe('test-flag');
     });
@@ -99,7 +134,7 @@ describe('Flags Routes', () => {
     });
   });
 
-  describe('PATCH /api/flags/:key (read-only API key)', () => {
+  describe('PATCH /api/flags/:key (client API key)', () => {
     beforeEach(async () => {
       await storage.createFlag({ projectId, key: 'update-flag', name: 'Update Flag', enabled: false, environment: 'test' });
     });
@@ -122,7 +157,27 @@ describe('Flags Routes', () => {
     });
   });
 
-  describe('DELETE /api/flags/:key (read-only API key)', () => {
+  describe('PATCH /api/flags/:key (secret API key)', () => {
+    beforeEach(async () => {
+      await storage.createFlag({ projectId, key: 'update-flag', name: 'Update Flag', enabled: false, environment: 'test' });
+    });
+
+    it('should update the flag and return 200', async () => {
+      const response = await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${secretApiKey}`).send({ enabled: true, name: 'Updated' });
+      expect(response.status).toBe(200);
+      expect(response.body.enabled).toBe(true);
+      expect(response.body.name).toBe('Updated');
+    });
+
+    it('should actually modify the flag in storage', async () => {
+      await request(app).patch('/api/flags/update-flag').set('Authorization', `Bearer ${secretApiKey}`).send({ enabled: true, name: 'Updated' });
+      const flag = await storage.getFlag(projectId, 'update-flag', 'test');
+      expect(flag?.enabled).toBe(true);
+      expect(flag?.name).toBe('Updated');
+    });
+  });
+
+  describe('DELETE /api/flags/:key (client API key)', () => {
     beforeEach(async () => {
       await storage.createFlag({ projectId, key: 'del-flag', name: 'Delete Flag', enabled: true, environment: 'test' });
     });
@@ -141,6 +196,23 @@ describe('Flags Routes', () => {
       await request(app).delete('/api/flags/del-flag').set('Authorization', `Bearer ${apiKey}`);
       const flag = await storage.getFlag(projectId, 'del-flag', 'test');
       expect(flag).not.toBeNull();
+    });
+  });
+
+  describe('DELETE /api/flags/:key (secret API key)', () => {
+    beforeEach(async () => {
+      await storage.createFlag({ projectId, key: 'del-flag', name: 'Delete Flag', enabled: true, environment: 'test' });
+    });
+
+    it('should delete the flag and return 204', async () => {
+      const response = await request(app).delete('/api/flags/del-flag').set('Authorization', `Bearer ${secretApiKey}`);
+      expect(response.status).toBe(204);
+    });
+
+    it('should actually delete the flag from storage', async () => {
+      await request(app).delete('/api/flags/del-flag').set('Authorization', `Bearer ${secretApiKey}`);
+      const flag = await storage.getFlag(projectId, 'del-flag', 'test');
+      expect(flag).toBeNull();
     });
   });
 
@@ -179,8 +251,8 @@ describe('Flags Routes', () => {
       const stagingEnv = await storage.createEnvironment({ projectId, name: 'staging' });
       const stagingApiKey = stagingEnv.key;
 
-      // Create a flag via storage (API keys are read-only); createFlag fans it
-      // out across all environments of the project.
+      // Create a flag via storage directly (avoids needing the secret key here);
+      // createFlag fans it out across all environments of the project.
       await storage.createFlag({ projectId, key: 'multi-env-flag', name: 'Multi Env Flag', enabled: false, environment: 'test' });
 
       // Verify the flag appears when listing with the 'test' environment key

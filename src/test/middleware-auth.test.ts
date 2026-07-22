@@ -66,4 +66,43 @@ describe('Auth Middleware', () => {
     expect(captured.environment).toBe('staging');
     expect(captured.id).toBe(env.id);
   });
+
+  it('sets role to "client" for a valid client token', async () => {
+    let captured: any;
+    const testApp = express();
+    testApp.use(express.json());
+    testApp.use('/protected', createAuthMiddleware(storage), (req: any, res) => {
+      captured = req.apiKey;
+      res.json({ ok: true });
+    });
+    const project = await storage.createProject({ name: 'ClientRoleProject' });
+    const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+    const res = await request(testApp).get('/protected').set('Authorization', `Bearer ${env.key}`);
+    expect(res.status).toBe(200);
+    expect(captured.role).toBe('client');
+    expect(captured.projectId).toBe(project.id);
+    expect(captured.environment).toBe('production');
+  });
+
+  it('sets role to "secret" for a valid secret token', async () => {
+    let captured: any;
+    const testApp = express();
+    testApp.use(express.json());
+    testApp.use('/protected', createAuthMiddleware(storage), (req: any, res) => {
+      captured = req.apiKey;
+      res.json({ ok: true });
+    });
+    const project = await storage.createProject({ name: 'SecretRoleProject' });
+    const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+    const res = await request(testApp).get('/protected').set('Authorization', `Bearer ${env.secretKey}`);
+    expect(res.status).toBe(200);
+    expect(captured.role).toBe('secret');
+    expect(captured.projectId).toBe(project.id);
+    expect(captured.environment).toBe('production');
+  });
+
+  it('rejects an unknown token with 401', async () => {
+    const res = await request(app).get('/protected').set('Authorization', 'Bearer ffs_unknownkey');
+    expect(res.status).toBe(401);
+  });
 });

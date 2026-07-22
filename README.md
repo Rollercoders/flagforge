@@ -118,8 +118,9 @@ Each project can have multiple environments (e.g. `production`, `staging`, `deve
 
 From the Projects page, each project row shows its environments. For each environment you can:
 
-- **Copy the API key** (`ff_…`) — click "Copy" to copy it to the clipboard
-- **Regenerate the API key** — invalidates the old key and generates a new one (confirmation required)
+- **Copy the client key** (`ff_…`) — click "Copy" to copy it to the clipboard; distribute this to apps/services that only need to read/evaluate flags
+- **Copy the secret key** (`ffs_…`) — keep this only in trusted backends; it can also create, update and delete flags via `/api/flags`
+- **Regenerate a key** — invalidates the old client or secret key and generates a new one (confirmation required)
 - **Rename the environment** — click the pencil icon
 - **Delete the environment** — confirmation required
 - **Navigate to flags** — click the environment name to open its flag list
@@ -164,42 +165,47 @@ The UI automatically reflects changes when a flag is modified — whether from a
 
 ## Usage
 
-### 1. Create an API Key
+### 1. Get an API Key
 
-First, create an API key for your environment:
+API keys are created per environment. Create an environment from the **web UI**
+(open a project and add an environment) and copy its API key (`ff_…`) — that key
+authenticates your requests. Each environment gets its own key, so flags stay
+isolated per environment.
 
-```bash
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Key",
-    "environment": "production"
-  }'
-```
-
-Response:
-```json
-{
-  "id": "abc123",
-  "key": "ff_xxxxxxxxxxxxxxxxxx",
-  "name": "Production Key",
-  "environment": "production",
-  "createdAt": "2024-01-15T10:00:00.000Z"
-}
-```
-
-Save the `key` value - you'll need it for authenticated requests.
+You'll use this `ff_…` key as a Bearer token for the requests below.
 
 ### 2. Create a Feature Flag
 
-Flags are created and managed from the **web UI** (admin session). Open the
-dashboard, pick your project and environment, and click **New Flag**.
+Each environment has **two** API keys:
 
-> **API keys are read-only.** The environment API key (`ff_…`) is meant for
-> your services to *evaluate* flags. Write operations on `/api/flags`
-> (`POST`/`PATCH`/`DELETE`) are rejected with **403** — use the web UI to
-> create, edit or delete flags. (Dedicated write-scoped API keys are planned
-> for a future release.)
+- **Client key** (`ff_…`) — meant to be distributed to apps/services. It can
+  only read and evaluate flags.
+- **Secret key** (`ffs_…`) — meant to stay in trusted backends only (never
+  ship it to a browser or mobile app). It can do everything the client key
+  can, **plus** create, update and delete flags via `/api/flags`.
+
+Both keys are shown next to their environment in the web UI (Projects page).
+
+Flags can be created and managed from the **web UI** (admin session), or from
+any trusted backend using the **secret key**:
+
+```bash
+curl -X POST http://localhost:3000/api/flags \
+  -H "Authorization: Bearer ffs_xxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "new-checkout-flow",
+    "name": "New Checkout Flow",
+    "description": "Redesigned checkout experience"
+  }'
+```
+
+The same endpoint accepts `PATCH /api/flags/:key` and `DELETE /api/flags/:key`
+with the same secret-key `Authorization` header, to update or delete a flag.
+
+> **The client key (`ff_…`) is read/evaluate only.** Write operations on
+> `/api/flags` (`POST`/`PATCH`/`DELETE`) return **403** when called with the
+> client key — use the **secret key** (`ffs_…`) or the web UI instead.
 
 ### 3. Evaluate a Flag
 
@@ -322,25 +328,34 @@ Response:
 
 ### Admin Endpoints
 
+These require an admin session (the web UI). Environment API keys are created
+by creating an environment.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/admin/api-keys` | Create an API key |
-| GET | `/admin/api-keys` | List all API keys |
-| DELETE | `/admin/api-keys/:id` | Delete an API key |
+| GET | `/admin/projects` | List projects |
+| POST | `/admin/projects` | Create a project |
+| DELETE | `/admin/projects/:id` | Delete a project |
+| GET | `/admin/projects/:id/environments` | List a project's environments (with their API keys) |
+| POST | `/admin/projects/:id/environments` | Create an environment (generates its API key) |
+| PATCH | `/admin/projects/:id/environments/:envId` | Rename an environment |
+| DELETE | `/admin/projects/:id/environments/:envId` | Delete an environment |
+| POST | `/admin/environments/:envId/regenerate-key` | Regenerate an environment's API key |
 
 ### Flag Management
 
-Reads use the environment API key (`Bearer ff_…`). **Writes are read-only via
-API key and return `403`** — create, edit and delete flags from the web UI
-(admin session). Write-scoped API keys are planned for a future release.
+Reads work with either API key (`Bearer ff_…` or `Bearer ffs_…`). Writes
+require the **secret key** (`Bearer ffs_…`) — calling a write endpoint with
+the client key (`ff_…`) returns **403**. Writes are also available from the
+web UI (admin session).
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/api/flags` | List all flags | API key |
-| GET | `/api/flags/:key` | Get a specific flag | API key |
-| POST | `/api/flags` | Create a flag | Web UI only (`403` via API key) |
-| PATCH | `/api/flags/:key` | Update a flag | Web UI only (`403` via API key) |
-| DELETE | `/api/flags/:key` | Delete a flag | Web UI only (`403` via API key) |
+| GET | `/api/flags` | List all flags | Client or secret key |
+| GET | `/api/flags/:key` | Get a specific flag | Client or secret key |
+| POST | `/api/flags` | Create a flag | Secret key (`403` with client key) |
+| PATCH | `/api/flags/:key` | Update a flag | Secret key (`403` with client key) |
+| DELETE | `/api/flags/:key` | Delete a flag | Secret key (`403` with client key) |
 
 ### Flag Evaluation (Requires Authentication)
 
@@ -515,26 +530,12 @@ STORAGE_PATH=./data/flags.json
 
 ## Multi-Environment Setup
 
-Create separate API keys for each environment:
+Create an environment per stage (e.g. `development`, `staging`, `production`)
+from the web UI — each one gets its own API key. Copy each environment's key and
+use it from that stage's services.
 
-```bash
-# Development
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Dev Key", "environment": "development"}'
-
-# Staging
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Staging Key", "environment": "staging"}'
-
-# Production
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Prod Key", "environment": "production"}'
-```
-
-Flags are isolated per environment - each API key only sees flags in its environment.
+Flags are isolated per environment: an environment's API key only sees flags in
+that environment.
 
 ## License
 

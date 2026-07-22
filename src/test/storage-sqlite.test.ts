@@ -120,13 +120,13 @@ describe('SqliteStorage', () => {
       const p = await storage.createProject({ name: 'App6' });
       const env = await storage.createEnvironment({ projectId: p.id, name: 'prod' });
       const oldKey = env.key;
-      const updated = await storage.regenerateEnvironmentKey(env.id);
+      const updated = await storage.regenerateEnvironmentKey(env.id, 'client');
       expect(updated.key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
       expect(updated.key).not.toBe(oldKey);
     });
 
     it('throws for unknown envId', async () => {
-      await expect(storage.regenerateEnvironmentKey('nope')).rejects.toThrow('Environment not found');
+      await expect(storage.regenerateEnvironmentKey('nope', 'client')).rejects.toThrow('Environment not found');
     });
   });
 
@@ -319,6 +319,51 @@ describe('SqliteStorage', () => {
       expect(backfilled?.type).toBe('number');
       expect(backfilled?.value).toBe(7);
       expect(backfilled?.defaultValue).toBe(2);
+    });
+  });
+
+  describe('API key roles', () => {
+    it('creates an environment with both a client and a secret key', async () => {
+      const project = await storage.createProject({ name: 'keys-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      expect(env.key).toMatch(/^ff_/);
+      expect(env.secretKey).toMatch(/^ffs_/);
+      expect(env.secretKey).not.toBe(env.key);
+    });
+
+    it('resolves a client token to role client and a secret token to role secret', async () => {
+      const project = await storage.createProject({ name: 'resolve-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      const asClient = await storage.getEnvironmentByAnyKey(env.key);
+      const asSecret = await storage.getEnvironmentByAnyKey(env.secretKey);
+      expect(asClient?.role).toBe('client');
+      expect(asSecret?.role).toBe('secret');
+      expect(await storage.getEnvironmentByAnyKey('ff_unknown')).toBeNull();
+    });
+
+    it('returns null for an empty token', async () => {
+      expect(await storage.getEnvironmentByAnyKey('')).toBeNull();
+    });
+
+    it('regenerates client and secret keys independently', async () => {
+      const project = await storage.createProject({ name: 'regen-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      const afterClient = await storage.regenerateEnvironmentKey(env.id, 'client');
+      expect(afterClient.key).not.toBe(env.key);
+      expect(afterClient.secretKey).toBe(env.secretKey); // untouched
+      const afterSecret = await storage.regenerateEnvironmentKey(env.id, 'secret');
+      expect(afterSecret.secretKey).not.toBe(env.secretKey);
+      expect(afterSecret.key).toBe(afterClient.key); // untouched
+    });
+
+    it('backfills a secret key for an environment created with the old schema', async () => {
+      // create env, then null out its secret_key to simulate a pre-migration row
+      const project = await storage.createProject({ name: 'legacy-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      (storage as any).db.prepare('UPDATE environments SET secret_key = NULL WHERE id = ?').run(env.id);
+      await storage.backfillSecretKeys(); // idempotent backfill, also called in initialize()
+      const reloaded = (await storage.getEnvironmentsByProject(project.id))[0];
+      expect(reloaded.secretKey).toMatch(/^ffs_/);
     });
   });
 });

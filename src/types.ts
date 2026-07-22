@@ -1,5 +1,6 @@
 export type FlagType = 'boolean' | 'number' | 'string';
 export type FlagValue = boolean | number | string;
+export type ApiKeyRole = 'client' | 'secret';
 
 export interface Project {
   id: string;
@@ -12,6 +13,7 @@ export interface Environment {
   projectId: string;
   name: string;
   key: string;
+  secretKey: string;
   createdAt: string;
 }
 
@@ -56,12 +58,13 @@ export interface Storage {
   deleteProject(id: string): Promise<void>;
 
   // Environments
-  createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment>;
+  createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key' | 'secretKey'>): Promise<Environment>;
   getEnvironmentsByProject(projectId: string): Promise<Environment[]>;
   deleteEnvironment(id: string): Promise<void>;
   renameEnvironment(id: string, name: string): Promise<Environment>;
-  regenerateEnvironmentKey(envId: string): Promise<Environment>;
+  regenerateEnvironmentKey(envId: string, role: ApiKeyRole): Promise<Environment>;
   getEnvironmentByKey(key: string): Promise<Environment | null>;
+  getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null>;
 
   // Flags
   createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]>;

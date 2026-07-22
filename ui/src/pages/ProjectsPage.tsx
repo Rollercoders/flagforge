@@ -42,6 +42,8 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
   const [editingEnvId, setEditingEnvId] = useState<string | null>(null);
   const [editingEnvName, setEditingEnvName] = useState('');
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(null);
+  const [confirmRegenerateSecretId, setConfirmRegenerateSecretId] = useState<string | null>(null);
+  const [revealedSecretIds, setRevealedSecretIds] = useState<Record<string, boolean>>({});
 
   const loadEnvs = useCallback(async () => {
     try {
@@ -92,13 +94,28 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
 
   async function handleRegenerateKey(envId: string) {
     try {
-      const updated = await regenerateEnvironmentKey(envId);
+      const updated = await regenerateEnvironmentKey(envId, 'client');
       setEnvironments(prev => prev.map(e => e.id === envId ? updated : e));
       setConfirmRegenerateId(null);
       showToast('API key regenerated');
     } catch {
       showToast('Failed to regenerate key', 'error');
     }
+  }
+
+  async function handleRegenerateSecretKey(envId: string) {
+    try {
+      const updated = await regenerateEnvironmentKey(envId, 'secret');
+      setEnvironments(prev => prev.map(e => e.id === envId ? updated : e));
+      setConfirmRegenerateSecretId(null);
+      showToast('Secret key regenerated');
+    } catch {
+      showToast('Failed to regenerate secret key', 'error');
+    }
+  }
+
+  function toggleRevealSecret(envId: string) {
+    setRevealedSecretIds(prev => ({ ...prev, [envId]: !prev[envId] }));
   }
 
   async function handleDeleteProject() {
@@ -135,9 +152,9 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
       </div>
 
       {environments.map(env => (
-        <div key={env.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px 10px 36px', borderBottom: '1px solid #f9fafb', gap: 8, flexWrap: 'wrap' }}>
+        <div key={env.id} style={{ padding: '10px 20px 10px 36px', borderBottom: '1px solid #f9fafb' }}>
           {editingEnvId === env.id ? (
-            <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 style={{ ...inputStyle, flex: 1, marginRight: 8 }}
                 value={editingEnvName}
@@ -152,57 +169,107 @@ function ProjectRow({ project, onDeleted, onSelectEnvironment }: ProjectRowProps
                 <button style={{ ...btnStyle('primary'), padding: '4px 10px', fontSize: 12 }} onClick={() => void handleRenameEnv(env.id)} disabled={!editingEnvName.trim()}>Save</button>
                 <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }} onClick={() => { setEditingEnvId(null); setEditingEnvName(''); }}>Cancel</button>
               </div>
-            </>
+            </div>
           ) : (
             <>
-              <span
-                style={{ fontSize: 13, color: '#374151', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#d1d5db', minWidth: 80 }}
-                onClick={() => onSelectEnvironment(project, env.name)}
-                title="Go to flags for this environment"
-              >{env.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span
+                  style={{ fontSize: 13, color: '#374151', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#d1d5db', minWidth: 80, fontWeight: 600 }}
+                  onClick={() => onSelectEnvironment(project, env.name)}
+                  title="Go to flags for this environment"
+                >{env.name}</span>
 
-              <code style={{ fontSize: 11, color: '#6b7280', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', letterSpacing: '0.03em' }}>
-                ff_••••••••••••••••
-              </code>
-              <button
-                onClick={() => copyKey(env.key)}
-                title="Copy API key"
-                style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
-              >
-                Copy
-              </button>
-
-              {confirmRegenerateId === env.id ? (
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button style={{ ...btnStyle('danger'), padding: '2px 8px', fontSize: 11 }} onClick={() => void handleRegenerateKey(env.id)}>Confirm</button>
-                  <button style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }} onClick={() => setConfirmRegenerateId(null)}>Cancel</button>
+                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                  {confirmDeleteEnvId === env.id ? (
+                    <>
+                      <button style={{ ...btnStyle('danger'), padding: '4px 10px', fontSize: 12 }} onClick={() => void handleDeleteEnv(env.id)}>Confirm</button>
+                      <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }} onClick={() => setConfirmDeleteEnvId(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }}
+                        onClick={() => { setEditingEnvId(env.id); setEditingEnvName(env.name); setConfirmDeleteEnvId(null); setConfirmRegenerateId(null); setConfirmRegenerateSecretId(null); }}
+                        title="Rename"
+                      >✎</button>
+                      <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12, color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => { setConfirmDeleteEnvId(env.id); setConfirmRegenerateId(null); setConfirmRegenerateSecretId(null); }}>Delete</button>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <button
-                  style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
-                  title="Regenerate API key"
-                  onClick={() => { setConfirmRegenerateId(env.id); setConfirmDeleteEnvId(null); }}
-                >
-                  Regenerate
-                </button>
-              )}
+              </div>
 
-              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                {confirmDeleteEnvId === env.id ? (
-                  <>
-                    <button style={{ ...btnStyle('danger'), padding: '4px 10px', fontSize: 12 }} onClick={() => void handleDeleteEnv(env.id)}>Confirm</button>
-                    <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }} onClick={() => setConfirmDeleteEnvId(null)}>Cancel</button>
-                  </>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: '#6b7280', minWidth: 80 }} title="Client key — for evaluating flags in your apps">Client key</span>
+
+                <code style={{ fontSize: 11, color: '#6b7280', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', letterSpacing: '0.03em' }}>
+                  ff_••••••••••••••••
+                </code>
+                <button
+                  onClick={() => copyKey(env.key)}
+                  title="Copy client key"
+                  style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                >
+                  Copy
+                </button>
+
+                {confirmRegenerateId === env.id ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button style={{ ...btnStyle('danger'), padding: '2px 8px', fontSize: 11 }} onClick={() => void handleRegenerateKey(env.id)}>Confirm</button>
+                    <button style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }} onClick={() => setConfirmRegenerateId(null)}>Cancel</button>
+                  </div>
                 ) : (
-                  <>
-                    <button
-                      style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12 }}
-                      onClick={() => { setEditingEnvId(env.id); setEditingEnvName(env.name); setConfirmDeleteEnvId(null); setConfirmRegenerateId(null); }}
-                      title="Rename"
-                    >✎</button>
-                    <button style={{ ...btnStyle('ghost'), padding: '4px 10px', fontSize: 12, color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => { setConfirmDeleteEnvId(env.id); setConfirmRegenerateId(null); }}>Delete</button>
-                  </>
+                  <button
+                    style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                    title="Regenerate client key"
+                    onClick={() => { setConfirmRegenerateId(env.id); setConfirmDeleteEnvId(null); setConfirmRegenerateSecretId(null); }}
+                  >
+                    Regenerate
+                  </button>
                 )}
+
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>for evaluating flags in your apps</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: '#6b7280', minWidth: 80 }} title="Secret key — for writing flags from trusted backends">Secret key</span>
+
+                <code style={{ fontSize: 11, color: '#6b7280', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', letterSpacing: '0.03em' }}>
+                  {revealedSecretIds[env.id] ? env.secretKey : 'ffs_••••••••••••••••'}
+                </code>
+                <button
+                  onClick={() => toggleRevealSecret(env.id)}
+                  title={revealedSecretIds[env.id] ? 'Hide secret key' : 'Reveal secret key'}
+                  style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                >
+                  {revealedSecretIds[env.id] ? 'Hide' : 'Reveal'}
+                </button>
+                <button
+                  onClick={() => copyKey(env.secretKey)}
+                  title="Copy secret key"
+                  style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                >
+                  Copy
+                </button>
+
+                {confirmRegenerateSecretId === env.id ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button style={{ ...btnStyle('danger'), padding: '2px 8px', fontSize: 11 }} onClick={() => void handleRegenerateSecretKey(env.id)}>Confirm</button>
+                    <button style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }} onClick={() => setConfirmRegenerateSecretId(null)}>Cancel</button>
+                  </div>
+                ) : (
+                  <button
+                    style={{ ...btnStyle('ghost'), padding: '2px 8px', fontSize: 11 }}
+                    title="Regenerate secret key"
+                    onClick={() => { setConfirmRegenerateSecretId(env.id); setConfirmDeleteEnvId(null); setConfirmRegenerateId(null); }}
+                  >
+                    Regenerate
+                  </button>
+                )}
+
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>for writing flags from trusted backends</span>
+              </div>
+              <div style={{ fontSize: 10, color: '#b45309', marginTop: 2 }}>
+                Keep this secret — never expose it in client-side code.
               </div>
             </>
           )}
