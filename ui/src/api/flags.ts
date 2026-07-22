@@ -1,5 +1,8 @@
 import { apiFetch } from './client';
 
+export type FlagType = 'boolean' | 'number' | 'string';
+export type FlagValue = boolean | number | string;
+
 export interface Flag {
   id: string;
   projectId: string;
@@ -7,14 +10,12 @@ export interface Flag {
   name: string;
   description?: string;
   enabled: boolean;
+  type: FlagType;
+  value?: FlagValue;
+  defaultValue?: FlagValue;
   environment: string;
-  targeting?: {
-    userIds?: string[];
-    attributes?: Record<string, string[]>;
-  };
-  rollout?: {
-    percentage: number;
-  };
+  targeting?: { userIds?: string[]; attributes?: Record<string, string[]> };
+  rollout?: { percentage: number };
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +24,9 @@ export interface CreateFlagPayload {
   key: string;
   name: string;
   description?: string;
+  type?: FlagType;
+  value?: FlagValue;
+  defaultValue?: FlagValue;
   targeting?: Flag['targeting'];
   rollout?: Flag['rollout'];
 }
@@ -31,6 +35,8 @@ export interface UpdateFlagPayload {
   name?: string;
   description?: string | null;
   enabled?: boolean;
+  value?: FlagValue;
+  defaultValue?: FlagValue;
   targeting?: Flag['targeting'] | null;
   rollout?: Flag['rollout'] | null;
 }
