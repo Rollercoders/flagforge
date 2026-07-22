@@ -1,5 +1,5 @@
-import { Flag, FlagEvaluationContext, FlagValue } from './types';
-import { resolveActiveValue, resolveDefaultValue } from './flagValue';
+import { Flag, FlagEvaluationContext, FlagValue } from './types.js';
+import { resolveActiveValue, resolveDefaultValue } from './flagValue.js';
 
 export class FlagEvaluator {
   evaluate(flag: Flag, context: FlagEvaluationContext): FlagValue {

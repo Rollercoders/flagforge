@@ -35,6 +35,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "smoke": "node -e \"import('./dist/server.js').then(() => console.log('smoke ok: dist module graph resolves')).catch(e => { console.error('smoke FAILED:', e.code || e.message); process.exit(1); })\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepublishOnly": "yarn build",

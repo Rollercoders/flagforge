@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { Storage, FlagEvaluationContext, FlagValue } from '../types';
-import { FlagEvaluator } from '../evaluator';
-import { AuthRequest } from '../middleware/auth';
-import { resolveActiveValue } from '../flagValue';
+import { Storage, FlagEvaluationContext, FlagValue } from '../types.js';
+import { FlagEvaluator } from '../evaluator.js';
+import { AuthRequest } from '../middleware/auth.js';
+import { resolveActiveValue } from '../flagValue.js';
 
 export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator) {
   const router = Router();

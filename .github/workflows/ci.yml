@@ -30,6 +30,12 @@ jobs:
       - name: Run tests
         run: yarn test
 
+      - name: Build
+        run: yarn build
+
+      - name: Smoke test (compiled package boots)
+        run: yarn smoke
+
       - name: Security audit
         run: yarn npm audit --environment production --severity high
 
