@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
-import { Storage, Flag } from '../types';
-import { AuthRequest } from '../middleware/auth';
+import { Storage, Flag } from '../types.js';
+import { AuthRequest } from '../middleware/auth.js';
 
 export function createFlagsRouter(storage: Storage) {
   const router = Router();
