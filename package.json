@@ -1,6 +1,6 @@
 {
   "name": "flagforge",
-  "version": "0.2.1",
+  "version": "0.0.0",
   "description": "Open-source, on-premise feature flagging platform",
   "repository": {
     "type": "git",
