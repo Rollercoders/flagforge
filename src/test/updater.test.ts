@@ -126,7 +126,9 @@ describe('runUpdate', () => {
         },
       });
       runUpdate(deps);
-      expect(out.join('\n')).not.toMatch(/pm2|systemctl|restart the service with/i);
+      // The neutral reminder ("Restart the service to apply…") is allowed;
+      // an actual restart command is not.
+      expect(out.join('\n')).not.toMatch(/pm2|systemctl|service .*restart|restart .*flagforge/i);
     }
   });
 });
