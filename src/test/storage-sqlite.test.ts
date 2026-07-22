@@ -279,5 +279,46 @@ describe('SqliteStorage', () => {
         if (fs.existsSync(legacyDbPath)) fs.unlinkSync(legacyDbPath);
       }
     });
+
+    it('updates value and defaultValue on a number flag', async () => {
+      const project = await storage.createProject({ name: 'typed-update' });
+      const [flag] = await storage.createFlag({
+        projectId: project.id, key: 'quota', name: 'Quota',
+        enabled: true, environment: 'production',
+        type: 'number', value: 5, defaultValue: 1,
+      });
+      await storage.updateFlag(flag.id, { value: 9, defaultValue: 3 });
+      const updated = await storage.getFlag(project.id, 'quota', 'production');
+      expect(updated?.value).toBe(9);
+      expect(updated?.defaultValue).toBe(3);
+    });
+
+    it('clears value to undefined when updateFlag is called with value null', async () => {
+      const project = await storage.createProject({ name: 'typed-clear' });
+      const [flag] = await storage.createFlag({
+        projectId: project.id, key: 'quota-clear', name: 'Quota Clear',
+        enabled: true, environment: 'production',
+        type: 'number', value: 5, defaultValue: 1,
+      });
+      await storage.updateFlag(flag.id, { value: null } as any);
+      const updated = await storage.getFlag(project.id, 'quota-clear', 'production');
+      expect(updated?.value).toBeUndefined();
+    });
+
+    it('backfills a typed flag into a newly created environment', async () => {
+      const project = await storage.createProject({ name: 'typed-backfill' });
+      await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      await storage.createFlag({
+        projectId: project.id, key: 'ratio', name: 'Ratio',
+        enabled: true, environment: 'production',
+        type: 'number', value: 7, defaultValue: 2,
+      });
+      await storage.createEnvironment({ projectId: project.id, name: 'staging' });
+      const backfilled = await storage.getFlag(project.id, 'ratio', 'staging');
+      expect(backfilled).not.toBeNull();
+      expect(backfilled?.type).toBe('number');
+      expect(backfilled?.value).toBe(7);
+      expect(backfilled?.defaultValue).toBe(2);
+    });
   });
 });

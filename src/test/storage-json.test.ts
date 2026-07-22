@@ -130,5 +130,21 @@ describe('JsonStorage', () => {
       const flag = await storage.getFlag(project.id, 'plain', 'production');
       expect(flag?.type).toBe('boolean');
     });
+
+    it('backfills a typed flag into a newly created environment', async () => {
+      const project = await storage.createProject({ name: 'typed-backfill' });
+      await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      await storage.createFlag({
+        projectId: project.id, key: 'ratio', name: 'Ratio',
+        enabled: true, environment: 'production',
+        type: 'number', value: 7, defaultValue: 2,
+      });
+      await storage.createEnvironment({ projectId: project.id, name: 'staging' });
+      const backfilled = await storage.getFlag(project.id, 'ratio', 'staging');
+      expect(backfilled).not.toBeNull();
+      expect(backfilled?.type).toBe('number');
+      expect(backfilled?.value).toBe(7);
+      expect(backfilled?.defaultValue).toBe(2);
+    });
   });
 });
