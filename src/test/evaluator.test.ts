@@ -320,7 +320,7 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: false, reason: 'disabled' });
+      expect(result).toEqual({ enabled: false, value: false, reason: 'disabled' });
     });
 
     it('should return targeting-miss reason when targeting does not match', () => {
@@ -332,7 +332,7 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: false, reason: 'targeting-miss' });
+      expect(result).toEqual({ enabled: false, value: false, reason: 'targeting-miss' });
     });
 
     it('should return enabled reason when targeting matches and no rollout', () => {
@@ -344,7 +344,7 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+      expect(result).toEqual({ enabled: true, value: true, reason: 'enabled' });
     });
 
     it('should return rollout-excluded reason when rollout percentage is 0', () => {
@@ -356,7 +356,7 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: false, reason: 'rollout-excluded' });
+      expect(result).toEqual({ enabled: false, value: false, reason: 'rollout-excluded' });
     });
 
     it('should return enabled reason when rollout percentage is 100', () => {
@@ -368,7 +368,7 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+      expect(result).toEqual({ enabled: true, value: true, reason: 'enabled' });
     });
 
     it('should return enabled reason when flag has no targeting nor rollout', () => {
@@ -377,7 +377,38 @@ describe('FlagEvaluator', () => {
 
       const result = evaluator.explain(flag, context);
 
-      expect(result).toEqual({ enabled: true, reason: 'enabled' });
+      expect(result).toEqual({ enabled: true, value: true, reason: 'enabled' });
+    });
+  });
+
+  describe('Typed flags', () => {
+    it('boolean flag keeps returning booleans', () => {
+      expect(evaluator.evaluate(createFlag({ type: 'boolean', enabled: true }), {})).toBe(true);
+      expect(evaluator.evaluate(createFlag({ type: 'boolean', enabled: false }), {})).toBe(false);
+    });
+
+    it('number flag returns value when on, defaultValue when off', () => {
+      const on = createFlag({ type: 'number', value: 42, defaultValue: 7, enabled: true });
+      const off = createFlag({ type: 'number', value: 42, defaultValue: 7, enabled: false });
+      expect(evaluator.evaluate(on, {})).toBe(42);
+      expect(evaluator.evaluate(off, {})).toBe(7);
+    });
+
+    it('string flag returns defaultValue on targeting miss', () => {
+      const flag = createFlag({
+        type: 'string', value: 'blue', defaultValue: 'gray', enabled: true,
+        targeting: { userIds: ['vip'] },
+      });
+      expect(evaluator.evaluate(flag, { userId: 'someone-else' })).toBe('gray');
+      expect(evaluator.evaluate(flag, { userId: 'vip' })).toBe('blue');
+    });
+
+    it('explain exposes the resolved value', () => {
+      const flag = createFlag({ type: 'number', value: 99, defaultValue: 0, enabled: false });
+      const res = evaluator.explain(flag, {});
+      expect(res.enabled).toBe(false);
+      expect(res.value).toBe(0);
+      expect(res.reason).toBe('disabled');
     });
   });
 });
