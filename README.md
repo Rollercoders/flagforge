@@ -177,17 +177,14 @@ Save the `key` value - you'll need it for authenticated requests.
 
 ### 2. Create a Feature Flag
 
-```bash
-curl -X POST http://localhost:3000/api/flags \
-  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key": "new-checkout-flow",
-    "name": "New Checkout Flow",
-    "description": "Redesigned checkout experience",
-    "enabled": true
-  }'
-```
+Flags are created and managed from the **web UI** (admin session). Open the
+dashboard, pick your project and environment, and click **New Flag**.
+
+> **API keys are read-only.** The environment API key (`ff_…`) is meant for
+> your services to *evaluate* flags. Write operations on `/api/flags`
+> (`POST`/`PATCH`/`DELETE`) are rejected with **403** — use the web UI to
+> create, edit or delete flags. (Dedicated write-scoped API keys are planned
+> for a future release.)
 
 ### 3. Evaluate a Flag
 
@@ -217,35 +214,31 @@ Response:
 
 ### User Targeting
 
-Enable a flag only for specific users:
+Enable a flag only for specific users. Configure targeting from the web UI
+(flag editor → Targeting); the resulting rule has this shape:
 
-```bash
-curl -X PATCH http://localhost:3000/api/flags/new-checkout-flow \
-  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "targeting": {
-      "userIds": ["user-123", "user-456"]
-    }
-  }'
+```json
+{
+  "targeting": {
+    "userIds": ["user-123", "user-456"]
+  }
+}
 ```
 
 ### Attribute Targeting
 
-Target users based on attributes:
+Target users based on attributes. Configure it from the web UI; the rule has
+this shape:
 
-```bash
-curl -X PATCH http://localhost:3000/api/flags/premium-feature \
-  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "targeting": {
-      "attributes": {
-        "plan": ["premium", "enterprise"],
-        "region": ["us-west"]
-      }
+```json
+{
+  "targeting": {
+    "attributes": {
+      "plan": ["premium", "enterprise"],
+      "region": ["us-west"]
     }
-  }'
+  }
+}
 ```
 
 Evaluate with attributes:
@@ -265,17 +258,15 @@ curl -X POST http://localhost:3000/api/evaluate/premium-feature \
 
 ### Percentage Rollout
 
-Gradually roll out to a percentage of users:
+Gradually roll out to a percentage of users. Configure the rollout from the
+web UI (flag editor → Rollout percentage); the resulting rule has this shape:
 
-```bash
-curl -X PATCH http://localhost:3000/api/flags/new-feature \
-  -H "Authorization: Bearer ff_xxxxxxxxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "rollout": {
-      "percentage": 25
-    }
-  }'
+```json
+{
+  "rollout": {
+    "percentage": 25
+  }
+}
 ```
 
 This will enable the flag for approximately 25% of users (based on consistent hashing of userId).
@@ -318,15 +309,19 @@ Response:
 | GET | `/admin/api-keys` | List all API keys |
 | DELETE | `/admin/api-keys/:id` | Delete an API key |
 
-### Flag Management (Requires Authentication)
+### Flag Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/flags` | Create a flag |
-| GET | `/api/flags` | List all flags |
-| GET | `/api/flags/:key` | Get a specific flag |
-| PATCH | `/api/flags/:key` | Update a flag |
-| DELETE | `/api/flags/:key` | Delete a flag |
+Reads use the environment API key (`Bearer ff_…`). **Writes are read-only via
+API key and return `403`** — create, edit and delete flags from the web UI
+(admin session). Write-scoped API keys are planned for a future release.
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/flags` | List all flags | API key |
+| GET | `/api/flags/:key` | Get a specific flag | API key |
+| POST | `/api/flags` | Create a flag | Web UI only (`403` via API key) |
+| PATCH | `/api/flags/:key` | Update a flag | Web UI only (`403` via API key) |
+| DELETE | `/api/flags/:key` | Delete a flag | Web UI only (`403` via API key) |
 
 ### Flag Evaluation (Requires Authentication)
 
