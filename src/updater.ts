@@ -17,6 +17,30 @@ function isPermissionError(res: RunResult): boolean {
   return /eacces|permission denied|EACCES/i.test(res.stderr);
 }
 
+/**
+ * Confronto semplice di versioni "X.Y.Z" (senza pre-release/build metadata).
+ * Ritorna un numero negativo se a < b, positivo se a > b, 0 se uguali.
+ * Componenti mancanti o non numerici sono trattati come 0.
+ */
+function compareVersions(a: string, b: string): number {
+  const parse = (v: string): number[] =>
+    v
+      .trim()
+      .split('.')
+      .slice(0, 3)
+      .map((part) => {
+        const n = parseInt(part, 10);
+        return Number.isNaN(n) ? 0 : n;
+      });
+
+  const [aMajor, aMinor, aPatch] = parse(a);
+  const [bMajor, bMinor, bPatch] = parse(b);
+
+  if (aMajor !== bMajor) return aMajor - bMajor;
+  if (aMinor !== bMinor) return aMinor - bMinor;
+  return aPatch - bPatch;
+}
+
 export function runUpdate(deps: UpdaterDeps): void {
   const { currentVersion, run, hasCommand, log } = deps;
 
@@ -32,8 +56,15 @@ export function runUpdate(deps: UpdaterDeps): void {
     return;
   }
 
-  if (latest === currentVersion) {
+  const cmp = compareVersions(currentVersion, latest);
+
+  if (cmp === 0) {
     log(`Già all’ultima versione (${currentVersion}).`);
+    return;
+  }
+
+  if (cmp > 0) {
+    log(`Versione locale (${currentVersion}) più recente di quella pubblicata (${latest}): nessun aggiornamento.`);
     return;
   }
 

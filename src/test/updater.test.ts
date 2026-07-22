@@ -71,6 +71,52 @@ describe('runUpdate', () => {
     expect(text).toMatch(/npm i(nstall)? -g flagforge@latest/i);
   });
 
+  it('reports a generic install failure without mentioning permissions', () => {
+    const { deps, out } = makeDeps({
+      run: (cmd, args) => {
+        if (cmd === 'npm' && args[0] === 'view') return { status: 0, stdout: '0.4.0\n', stderr: '' };
+        if (cmd === 'npm' && args[0] === 'install') {
+          return { status: 1, stdout: '', stderr: 'network error' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    runUpdate(deps);
+    const text = out.join('\n');
+    expect(text).toMatch(/aggiornamento fallito/i);
+    expect(text).not.toMatch(/permessi insufficienti/i);
+  });
+
+  it('does not downgrade when the local version is newer than the published latest', () => {
+    const calls: string[][] = [];
+    const { deps, out } = makeDeps({
+      currentVersion: '0.5.0',
+      run: (cmd, args) => {
+        calls.push([cmd, ...args]);
+        if (cmd === 'npm' && args[0] === 'view') return { status: 0, stdout: '0.4.0\n', stderr: '' };
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    runUpdate(deps);
+    expect(out.join('\n')).toMatch(/pi[uù] recente.*nessun aggiornamento/i);
+    expect(calls.some((c) => c[0] === 'npm' && c[1] === 'install')).toBe(false);
+  });
+
+  it('proceeds with install when the published latest is newer than the local version', () => {
+    const calls: string[][] = [];
+    const { deps, out } = makeDeps({
+      currentVersion: '0.3.2',
+      run: (cmd, args) => {
+        calls.push([cmd, ...args]);
+        if (cmd === 'npm' && args[0] === 'view') return { status: 0, stdout: '0.4.0\n', stderr: '' };
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    runUpdate(deps);
+    expect(calls).toContainEqual(['npm', 'install', '-g', 'flagforge@latest']);
+    expect(out.join('\n')).toMatch(/aggiornato da 0\.3\.2 a 0\.4\.0/i);
+  });
+
   it('never prints a restart command in any branch', () => {
     for (const latest of ['0.3.2', '0.4.0']) {
       const { deps, out } = makeDeps({
