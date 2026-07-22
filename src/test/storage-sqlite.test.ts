@@ -198,4 +198,42 @@ describe('SqliteStorage', () => {
       expect(await storage.getFlag(p.id, 'k', env.name)).toBeNull();
     });
   });
+
+  describe('Typed flags', () => {
+    it('persists and reads a number flag round-trip', async () => {
+      const project = await storage.createProject({ name: 'typed-proj' });
+      await storage.createFlag({
+        projectId: project.id, key: 'max-items', name: 'Max Items',
+        enabled: true, environment: 'production',
+        type: 'number', value: 25, defaultValue: 10,
+      });
+      const flag = await storage.getFlag(project.id, 'max-items', 'production');
+      expect(flag?.type).toBe('number');
+      expect(flag?.value).toBe(25);
+      expect(flag?.defaultValue).toBe(10);
+    });
+
+    it('preserves string vs number distinction', async () => {
+      const project = await storage.createProject({ name: 'typed-proj-2' });
+      await storage.createFlag({
+        projectId: project.id, key: 'label', name: 'Label',
+        enabled: true, environment: 'production',
+        type: 'string', value: '25', defaultValue: 'x',
+      });
+      const flag = await storage.getFlag(project.id, 'label', 'production');
+      expect(flag?.type).toBe('string');
+      expect(flag?.value).toBe('25');
+      expect(typeof flag?.value).toBe('string');
+    });
+
+    it('defaults legacy flags (no type) to boolean', async () => {
+      const project = await storage.createProject({ name: 'legacy-proj' });
+      await storage.createFlag({
+        projectId: project.id, key: 'old-flag', name: 'Old',
+        enabled: true, environment: 'production',
+      });
+      const flag = await storage.getFlag(project.id, 'old-flag', 'production');
+      expect(flag?.type).toBe('boolean');
+    });
+  });
 });

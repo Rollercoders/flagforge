@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import { Storage, Flag, Project, Environment } from '../types.js';
+import { normalizeFlagType } from '../flagValue.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -36,6 +37,9 @@ export class SqliteStorage implements Storage {
         name TEXT NOT NULL,
         description TEXT,
         enabled INTEGER NOT NULL DEFAULT 0,
+        type TEXT NOT NULL DEFAULT 'boolean',
+        value TEXT,
+        default_value TEXT,
         environment TEXT NOT NULL,
         targeting TEXT,
         rollout TEXT,
@@ -56,6 +60,19 @@ export class SqliteStorage implements Storage {
       CREATE INDEX IF NOT EXISTS idx_environments_project ON environments(project_id);
       CREATE INDEX IF NOT EXISTS idx_environments_key ON environments(key);
     `);
+
+    // Migrazione idempotente: aggiunge le colonne dei flag tipizzati se mancano.
+    for (const stmt of [
+      "ALTER TABLE flags ADD COLUMN type TEXT NOT NULL DEFAULT 'boolean'",
+      'ALTER TABLE flags ADD COLUMN value TEXT',
+      'ALTER TABLE flags ADD COLUMN default_value TEXT',
+    ]) {
+      try {
+        this.db.exec(stmt);
+      } catch {
+        // colonna già presente: no-op
+      }
+    }
   }
 
   async createProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
@@ -97,13 +114,15 @@ export class SqliteStorage implements Storage {
 
     // Auto-backfill: copy existing flag keys into the new environment
     const existingFlags = this.db.prepare(
-      'SELECT key, name, description, targeting, rollout FROM flags WHERE project_id = ? AND environment != ? GROUP BY key'
+      'SELECT key, name, description, type, value, default_value, targeting, rollout FROM flags WHERE project_id = ? AND environment != ? GROUP BY key'
     ).all(env.projectId, env.name) as any[];
     for (const flag of existingFlags) {
       const flagId = nanoid();
       this.db.prepare(
-        'INSERT OR IGNORE INTO flags (id, project_id, key, name, description, enabled, environment, targeting, rollout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(flagId, env.projectId, flag.key, flag.name, flag.description ?? null, 0, env.name, flag.targeting ?? null, flag.rollout ?? null, now, now);
+        'INSERT OR IGNORE INTO flags (id, project_id, key, name, description, enabled, type, value, default_value, environment, targeting, rollout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(flagId, env.projectId, flag.key, flag.name, flag.description ?? null, 0,
+        flag.type ?? 'boolean', flag.value ?? null, flag.default_value ?? null,
+        env.name, flag.targeting ?? null, flag.rollout ?? null, now, now);
     }
 
     return { id, projectId: env.projectId, name: env.name, key, createdAt: now };
@@ -178,19 +197,25 @@ export class SqliteStorage implements Storage {
     const envNames = envRows.map(r => r.name as string);
     if (envNames.length === 0) envNames.push(flag.environment);
 
+    const type = normalizeFlagType(flag.type);
+    const valueJson = flag.value !== undefined ? JSON.stringify(flag.value) : null;
+    const defaultValueJson = flag.defaultValue !== undefined ? JSON.stringify(flag.defaultValue) : null;
+
     const now = new Date().toISOString();
     const insert = this.db.prepare(`
-      INSERT INTO flags (id, project_id, key, name, description, enabled, environment, targeting, rollout, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO flags (id, project_id, key, name, description, enabled, type, value, default_value, environment, targeting, rollout, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const created: Flag[] = [];
     for (const envName of envNames) {
       const id = nanoid();
-      insert.run(id, projectId, flag.key, flag.name, flag.description || null, flag.enabled ? 1 : 0, envName,
+      insert.run(id, projectId, flag.key, flag.name, flag.description || null, flag.enabled ? 1 : 0,
+        type, valueJson, defaultValueJson, envName,
         flag.targeting ? JSON.stringify(flag.targeting) : null, flag.rollout ? JSON.stringify(flag.rollout) : null, now, now);
       created.push({ id, projectId: flag.projectId, key: flag.key, name: flag.name, description: flag.description,
-        enabled: flag.enabled, environment: envName, targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
+        enabled: flag.enabled, type, value: flag.value, defaultValue: flag.defaultValue, environment: envName,
+        targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
     }
     return created;
   }
@@ -220,6 +245,8 @@ export class SqliteStorage implements Storage {
     if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled ? 1 : 0); }
     if (updates.targeting !== undefined) { fields.push('targeting = ?'); values.push(updates.targeting ? JSON.stringify(updates.targeting) : null); }
     if (updates.rollout !== undefined) { fields.push('rollout = ?'); values.push(updates.rollout ? JSON.stringify(updates.rollout) : null); }
+    if (updates.value !== undefined) { fields.push('value = ?'); values.push(updates.value === null ? null : JSON.stringify(updates.value)); }
+    if (updates.defaultValue !== undefined) { fields.push('default_value = ?'); values.push(updates.defaultValue === null ? null : JSON.stringify(updates.defaultValue)); }
     fields.push('updated_at = ?');
     values.push(now, id);
     this.db.prepare(`UPDATE flags SET ${fields.join(', ')} WHERE id = ?`).run(...values);
@@ -240,7 +267,9 @@ export class SqliteStorage implements Storage {
   private rowToFlag(row: any): Flag {
     return {
       id: row.id, projectId: row.project_id, key: row.key, name: row.name, description: row.description,
-      enabled: row.enabled === 1, environment: row.environment,
+      enabled: row.enabled === 1, type: normalizeFlagType(row.type), environment: row.environment,
+      value: row.value != null ? JSON.parse(row.value) : undefined,
+      defaultValue: row.default_value != null ? JSON.parse(row.default_value) : undefined,
       targeting: row.targeting ? JSON.parse(row.targeting) : undefined,
       rollout: row.rollout ? JSON.parse(row.rollout) : undefined,
       createdAt: row.created_at, updatedAt: row.updated_at,
