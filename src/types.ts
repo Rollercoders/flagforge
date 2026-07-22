@@ -1,3 +1,6 @@
+export type FlagType = 'boolean' | 'number' | 'string';
+export type FlagValue = boolean | number | string;
+
 export interface Project {
   id: string;
   name: string;
@@ -19,6 +22,9 @@ export interface Flag {
   name: string;
   description?: string;
   enabled: boolean;
+  type?: FlagType;
+  value?: FlagValue;
+  defaultValue?: FlagValue;
   environment: string;
   targeting?: Targeting;
   rollout?: Rollout;
