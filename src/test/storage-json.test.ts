@@ -147,4 +147,61 @@ describe('JsonStorage', () => {
       expect(backfilled?.defaultValue).toBe(2);
     });
   });
+
+  describe('API key roles', () => {
+    it('creates an environment with both a client and a secret key', async () => {
+      const project = await storage.createProject({ name: 'keys-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      expect(env.key).toMatch(/^ff_/);
+      expect(env.secretKey).toMatch(/^ffs_/);
+      expect(env.secretKey).not.toBe(env.key);
+    });
+
+    it('resolves a client token to role client and a secret token to role secret', async () => {
+      const project = await storage.createProject({ name: 'resolve-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      const asClient = await storage.getEnvironmentByAnyKey(env.key);
+      const asSecret = await storage.getEnvironmentByAnyKey(env.secretKey);
+      expect(asClient?.role).toBe('client');
+      expect(asSecret?.role).toBe('secret');
+      expect(await storage.getEnvironmentByAnyKey('ff_unknown')).toBeNull();
+    });
+
+    it('regenerates client and secret keys independently', async () => {
+      const project = await storage.createProject({ name: 'regen-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      const afterClient = await storage.regenerateEnvironmentKey(env.id, 'client');
+      expect(afterClient.key).not.toBe(env.key);
+      expect(afterClient.secretKey).toBe(env.secretKey); // untouched
+      const afterSecret = await storage.regenerateEnvironmentKey(env.id, 'secret');
+      expect(afterSecret.secretKey).not.toBe(env.secretKey);
+      expect(afterSecret.key).toBe(afterClient.key); // untouched
+    });
+
+    it('backfills a secret key for an environment created with the old schema', async () => {
+      // Create env, then rewrite the JSON file on disk without secretKey to
+      // simulate a pre-migration row, and reload a fresh store from it.
+      const project = await storage.createProject({ name: 'legacy-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+
+      const raw = JSON.parse(fs.readFileSync(testFilePath, 'utf-8'));
+      const legacyEnv = raw.environments.find((e: { id: string }) => e.id === env.id);
+      delete legacyEnv.secretKey;
+      fs.writeFileSync(testFilePath, JSON.stringify(raw, null, 2));
+
+      // initialize() runs backfillSecretKeys() internally
+      const reloadedStorage = new JsonStorage(testFilePath);
+      await reloadedStorage.initialize();
+      const reloaded = (await reloadedStorage.getEnvironmentsByProject(project.id))[0];
+      expect(reloaded.secretKey).toMatch(/^ffs_/);
+    });
+
+    it('leaves an already-populated secret key unchanged on backfill', async () => {
+      const project = await storage.createProject({ name: 'keep-proj' });
+      const env = await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      await storage.backfillSecretKeys();
+      const envs = await storage.getEnvironmentsByProject(project.id);
+      expect(envs[0].secretKey).toBe(env.secretKey);
+    });
+  });
 });
