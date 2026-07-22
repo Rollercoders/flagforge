@@ -165,31 +165,14 @@ The UI automatically reflects changes when a flag is modified — whether from a
 
 ## Usage
 
-### 1. Create an API Key
+### 1. Get an API Key
 
-First, create an API key for your environment:
+API keys are created per environment. Create an environment from the **web UI**
+(open a project and add an environment) and copy its API key (`ff_…`) — that key
+authenticates your requests. Each environment gets its own key, so flags stay
+isolated per environment.
 
-```bash
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Key",
-    "environment": "production"
-  }'
-```
-
-Response:
-```json
-{
-  "id": "abc123",
-  "key": "ff_xxxxxxxxxxxxxxxxxx",
-  "name": "Production Key",
-  "environment": "production",
-  "createdAt": "2024-01-15T10:00:00.000Z"
-}
-```
-
-Save the `key` value - you'll need it for authenticated requests.
+You'll use this `ff_…` key as a Bearer token for the requests below.
 
 ### 2. Create a Feature Flag
 
@@ -345,11 +328,19 @@ Response:
 
 ### Admin Endpoints
 
+These require an admin session (the web UI). Environment API keys are created
+by creating an environment.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/admin/api-keys` | Create an API key |
-| GET | `/admin/api-keys` | List all API keys |
-| DELETE | `/admin/api-keys/:id` | Delete an API key |
+| GET | `/admin/projects` | List projects |
+| POST | `/admin/projects` | Create a project |
+| DELETE | `/admin/projects/:id` | Delete a project |
+| GET | `/admin/projects/:id/environments` | List a project's environments (with their API keys) |
+| POST | `/admin/projects/:id/environments` | Create an environment (generates its API key) |
+| PATCH | `/admin/projects/:id/environments/:envId` | Rename an environment |
+| DELETE | `/admin/projects/:id/environments/:envId` | Delete an environment |
+| POST | `/admin/environments/:envId/regenerate-key` | Regenerate an environment's API key |
 
 ### Flag Management
 
@@ -539,26 +530,12 @@ STORAGE_PATH=./data/flags.json
 
 ## Multi-Environment Setup
 
-Create separate API keys for each environment:
+Create an environment per stage (e.g. `development`, `staging`, `production`)
+from the web UI — each one gets its own API key. Copy each environment's key and
+use it from that stage's services.
 
-```bash
-# Development
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Dev Key", "environment": "development"}'
-
-# Staging
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Staging Key", "environment": "staging"}'
-
-# Production
-curl -X POST http://localhost:3000/admin/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Prod Key", "environment": "production"}'
-```
-
-Flags are isolated per environment - each API key only sees flags in its environment.
+Flags are isolated per environment: an environment's API key only sees flags in
+that environment.
 
 ## License
 
