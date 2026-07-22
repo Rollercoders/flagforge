@@ -71,7 +71,7 @@ export class SqliteStorage implements Storage {
       try {
         this.db.exec(stmt);
       } catch {
-        // colonna già presente: no-op
+        // column already present: no-op
       }
     }
 

@@ -20,9 +20,9 @@ export function createMcpRouter(storage: Storage, evaluator: FlagEvaluator, toke
       server.registerTool(
         t.name,
         { description: t.description, inputSchema: t.inputSchema },
-        // L'SDK passa gli argomenti già validati contro inputSchema.
-        // Cast a CallToolResult: McpToolResult ha la stessa forma ma senza index
-        // signature, che l'SDK 1.29.0 richiede per il tipo di ritorno del tool callback.
+        // The SDK passes arguments already validated against inputSchema.
+        // Cast to CallToolResult: McpToolResult has the same shape but without the
+        // index signature that SDK 1.29.0 requires for the tool callback return type.
         async (args: Record<string, unknown>): Promise<CallToolResult> => {
           const result = await t.handler(args ?? {});
           return result as CallToolResult;

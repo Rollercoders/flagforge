@@ -114,7 +114,7 @@ async function runInit(): Promise<void> {
   const dataDir = dirname(join(process.cwd(), config.storagePath));
   mkdirSync(dataDir, { recursive: true });
 
-  // Scrive .env (senza ancora la password generata; verrà aggiunta dopo l'avvio se generata)
+  // Write .env (without the generated password yet; it's added after startup if generated)
   writeFileSync(envPath, renderEnvFile(config), 'utf8');
 
   await launch(config, envPath);
@@ -142,7 +142,7 @@ async function runStart(): Promise<void> {
     console.error('Nessun .env trovato in questa cartella. Esegui prima `flagforge init`.');
     process.exit(1);
   }
-  // Carica .env tramite dotenv senza sovrascrivere variabili già presenti in process.env.
+  // Load .env via dotenv without overriding variables already present in process.env.
   dotenv.config({ path: envPath, override: false });
 
   const config: ServerConfig = {

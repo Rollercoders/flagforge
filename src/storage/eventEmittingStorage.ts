@@ -21,7 +21,7 @@ export class EventEmittingStorage implements Storage {
   getEnvironmentByKey(key: string): Promise<Environment | null> { return this.inner.getEnvironmentByKey(key); }
   getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> { return this.inner.getEnvironmentByAnyKey(token); }
 
-  // Flags — emit dopo mutazione
+  // Flags — emit after mutation
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {
     const result = await this.inner.createFlag(flag);
     for (const created of result) {
