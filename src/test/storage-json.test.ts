@@ -107,4 +107,28 @@ describe('JsonStorage', () => {
       expect(flags).toHaveLength(2);
     });
   });
+
+  describe('Typed flags', () => {
+    it('round-trips a number flag', async () => {
+      const project = await storage.createProject({ name: 'typed' });
+      await storage.createFlag({
+        projectId: project.id, key: 'limit', name: 'Limit',
+        enabled: true, environment: 'production', type: 'number', value: 3, defaultValue: 1,
+      });
+      const flag = await storage.getFlag(project.id, 'limit', 'production');
+      expect(flag?.type).toBe('number');
+      expect(flag?.value).toBe(3);
+      expect(flag?.defaultValue).toBe(1);
+    });
+
+    it('normalizes a flag without type to boolean on read', async () => {
+      const project = await storage.createProject({ name: 'legacy' });
+      await storage.createFlag({
+        projectId: project.id, key: 'plain', name: 'Plain',
+        enabled: true, environment: 'production',
+      });
+      const flag = await storage.getFlag(project.id, 'plain', 'production');
+      expect(flag?.type).toBe('boolean');
+    });
+  });
 });
