@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -12,6 +13,7 @@ import {
   renderEnvFile,
   WizardAnswers,
 } from './cliConfig.js';
+import { runUpdate, RunResult } from './updater.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +33,7 @@ FlagForge — open-source feature flagging platform
 Usage:
   flagforge init      Configura e avvia FlagForge (wizard interattivo)
   flagforge start     Avvia FlagForge usando il .env esistente
+  flagforge update    Aggiorna FlagForge all'ultima versione (dove i permessi lo consentono)
   flagforge --help    Mostra questo messaggio
   flagforge --version Mostra la versione
 `);
@@ -153,6 +156,28 @@ async function runStart(): Promise<void> {
   outro('FlagForge è in esecuzione.');
 }
 
+function runRealUpdate(): void {
+  const run = (cmd: string, args: string[]): RunResult => {
+    const res = spawnSync(cmd, args, { encoding: 'utf8' });
+    return {
+      status: res.status ?? (res.error ? 1 : 0),
+      stdout: res.stdout ?? '',
+      stderr: res.stderr ?? '',
+      error: res.error as NodeJS.ErrnoException | undefined,
+    };
+  };
+  const hasCommand = (cmd: string): boolean => {
+    const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], { encoding: 'utf8' });
+    return (probe.status ?? 1) === 0;
+  };
+  runUpdate({
+    currentVersion: readVersion(),
+    run,
+    hasCommand,
+    log: (m) => console.log(m),
+  });
+}
+
 async function launch(config: ServerConfig, envPath: string): Promise<void> {
   try {
     const result = await startServer(config);
@@ -187,6 +212,9 @@ async function main(): Promise<void> {
       break;
     case 'start':
       await runStart();
+      break;
+    case 'update':
+      runRealUpdate();
       break;
     case '--version':
     case '-v':
