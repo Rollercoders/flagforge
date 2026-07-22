@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SqliteStorage } from '../storage/sqlite';
+import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -234,6 +235,49 @@ describe('SqliteStorage', () => {
       });
       const flag = await storage.getFlag(project.id, 'old-flag', 'production');
       expect(flag?.type).toBe('boolean');
+    });
+
+    it('migrates a pre-existing file DB with the old flags schema (no type/value/default_value)', async () => {
+      const legacyDbPath = path.join(__dirname, '../../test-data/sqlite-legacy-test.db');
+      if (fs.existsSync(legacyDbPath)) fs.unlinkSync(legacyDbPath);
+      const dir = path.dirname(legacyDbPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+      // Crea un DB con lo schema VECCHIO dei flag (senza type/value/default_value)
+      // e una riga già presente, simulando un'installazione pre-esistente.
+      const legacyDb = new Database(legacyDbPath);
+      legacyDb.exec(`
+        CREATE TABLE flags (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL DEFAULT '',
+          key TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          enabled INTEGER NOT NULL DEFAULT 0,
+          environment TEXT NOT NULL,
+          targeting TEXT,
+          rollout TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(project_id, key, environment)
+        );
+      `);
+      const now = new Date().toISOString();
+      legacyDb.prepare(
+        'INSERT INTO flags (id, project_id, key, name, description, enabled, environment, targeting, rollout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('legacy-id', 'legacy-project', 'legacy-flag', 'Legacy Flag', null, 1, 'production', null, null, now, now);
+      legacyDb.close();
+
+      try {
+        const legacyStorage = new SqliteStorage(legacyDbPath);
+        await legacyStorage.initialize();
+
+        const flag = await legacyStorage.getFlag('legacy-project', 'legacy-flag', 'production');
+        expect(flag?.type).toBe('boolean');
+        expect(flag?.enabled).toBe(true);
+      } finally {
+        if (fs.existsSync(legacyDbPath)) fs.unlinkSync(legacyDbPath);
+      }
     });
   });
 });
