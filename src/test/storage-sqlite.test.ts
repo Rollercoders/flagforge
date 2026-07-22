@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SqliteStorage } from '../storage/sqlite';
+import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -196,6 +197,128 @@ describe('SqliteStorage', () => {
       expect(updated.enabled).toBe(true);
       await storage.deleteFlag(p.id, 'k');
       expect(await storage.getFlag(p.id, 'k', env.name)).toBeNull();
+    });
+  });
+
+  describe('Typed flags', () => {
+    it('persists and reads a number flag round-trip', async () => {
+      const project = await storage.createProject({ name: 'typed-proj' });
+      await storage.createFlag({
+        projectId: project.id, key: 'max-items', name: 'Max Items',
+        enabled: true, environment: 'production',
+        type: 'number', value: 25, defaultValue: 10,
+      });
+      const flag = await storage.getFlag(project.id, 'max-items', 'production');
+      expect(flag?.type).toBe('number');
+      expect(flag?.value).toBe(25);
+      expect(flag?.defaultValue).toBe(10);
+    });
+
+    it('preserves string vs number distinction', async () => {
+      const project = await storage.createProject({ name: 'typed-proj-2' });
+      await storage.createFlag({
+        projectId: project.id, key: 'label', name: 'Label',
+        enabled: true, environment: 'production',
+        type: 'string', value: '25', defaultValue: 'x',
+      });
+      const flag = await storage.getFlag(project.id, 'label', 'production');
+      expect(flag?.type).toBe('string');
+      expect(flag?.value).toBe('25');
+      expect(typeof flag?.value).toBe('string');
+    });
+
+    it('defaults legacy flags (no type) to boolean', async () => {
+      const project = await storage.createProject({ name: 'legacy-proj' });
+      await storage.createFlag({
+        projectId: project.id, key: 'old-flag', name: 'Old',
+        enabled: true, environment: 'production',
+      });
+      const flag = await storage.getFlag(project.id, 'old-flag', 'production');
+      expect(flag?.type).toBe('boolean');
+    });
+
+    it('migrates a pre-existing file DB with the old flags schema (no type/value/default_value)', async () => {
+      const legacyDbPath = path.join(__dirname, '../../test-data/sqlite-legacy-test.db');
+      if (fs.existsSync(legacyDbPath)) fs.unlinkSync(legacyDbPath);
+      const dir = path.dirname(legacyDbPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+      // Crea un DB con lo schema VECCHIO dei flag (senza type/value/default_value)
+      // e una riga già presente, simulando un'installazione pre-esistente.
+      const legacyDb = new Database(legacyDbPath);
+      legacyDb.exec(`
+        CREATE TABLE flags (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL DEFAULT '',
+          key TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          enabled INTEGER NOT NULL DEFAULT 0,
+          environment TEXT NOT NULL,
+          targeting TEXT,
+          rollout TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(project_id, key, environment)
+        );
+      `);
+      const now = new Date().toISOString();
+      legacyDb.prepare(
+        'INSERT INTO flags (id, project_id, key, name, description, enabled, environment, targeting, rollout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('legacy-id', 'legacy-project', 'legacy-flag', 'Legacy Flag', null, 1, 'production', null, null, now, now);
+      legacyDb.close();
+
+      try {
+        const legacyStorage = new SqliteStorage(legacyDbPath);
+        await legacyStorage.initialize();
+
+        const flag = await legacyStorage.getFlag('legacy-project', 'legacy-flag', 'production');
+        expect(flag?.type).toBe('boolean');
+        expect(flag?.enabled).toBe(true);
+      } finally {
+        if (fs.existsSync(legacyDbPath)) fs.unlinkSync(legacyDbPath);
+      }
+    });
+
+    it('updates value and defaultValue on a number flag', async () => {
+      const project = await storage.createProject({ name: 'typed-update' });
+      const [flag] = await storage.createFlag({
+        projectId: project.id, key: 'quota', name: 'Quota',
+        enabled: true, environment: 'production',
+        type: 'number', value: 5, defaultValue: 1,
+      });
+      await storage.updateFlag(flag.id, { value: 9, defaultValue: 3 });
+      const updated = await storage.getFlag(project.id, 'quota', 'production');
+      expect(updated?.value).toBe(9);
+      expect(updated?.defaultValue).toBe(3);
+    });
+
+    it('clears value to undefined when updateFlag is called with value null', async () => {
+      const project = await storage.createProject({ name: 'typed-clear' });
+      const [flag] = await storage.createFlag({
+        projectId: project.id, key: 'quota-clear', name: 'Quota Clear',
+        enabled: true, environment: 'production',
+        type: 'number', value: 5, defaultValue: 1,
+      });
+      await storage.updateFlag(flag.id, { value: null } as any);
+      const updated = await storage.getFlag(project.id, 'quota-clear', 'production');
+      expect(updated?.value).toBeUndefined();
+    });
+
+    it('backfills a typed flag into a newly created environment', async () => {
+      const project = await storage.createProject({ name: 'typed-backfill' });
+      await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      await storage.createFlag({
+        projectId: project.id, key: 'ratio', name: 'Ratio',
+        enabled: true, environment: 'production',
+        type: 'number', value: 7, defaultValue: 2,
+      });
+      await storage.createEnvironment({ projectId: project.id, name: 'staging' });
+      const backfilled = await storage.getFlag(project.id, 'ratio', 'staging');
+      expect(backfilled).not.toBeNull();
+      expect(backfilled?.type).toBe('number');
+      expect(backfilled?.value).toBe(7);
+      expect(backfilled?.defaultValue).toBe(2);
     });
   });
 });

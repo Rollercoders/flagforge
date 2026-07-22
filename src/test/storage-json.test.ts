@@ -107,4 +107,44 @@ describe('JsonStorage', () => {
       expect(flags).toHaveLength(2);
     });
   });
+
+  describe('Typed flags', () => {
+    it('round-trips a number flag', async () => {
+      const project = await storage.createProject({ name: 'typed' });
+      await storage.createFlag({
+        projectId: project.id, key: 'limit', name: 'Limit',
+        enabled: true, environment: 'production', type: 'number', value: 3, defaultValue: 1,
+      });
+      const flag = await storage.getFlag(project.id, 'limit', 'production');
+      expect(flag?.type).toBe('number');
+      expect(flag?.value).toBe(3);
+      expect(flag?.defaultValue).toBe(1);
+    });
+
+    it('normalizes a flag without type to boolean on read', async () => {
+      const project = await storage.createProject({ name: 'legacy' });
+      await storage.createFlag({
+        projectId: project.id, key: 'plain', name: 'Plain',
+        enabled: true, environment: 'production',
+      });
+      const flag = await storage.getFlag(project.id, 'plain', 'production');
+      expect(flag?.type).toBe('boolean');
+    });
+
+    it('backfills a typed flag into a newly created environment', async () => {
+      const project = await storage.createProject({ name: 'typed-backfill' });
+      await storage.createEnvironment({ projectId: project.id, name: 'production' });
+      await storage.createFlag({
+        projectId: project.id, key: 'ratio', name: 'Ratio',
+        enabled: true, environment: 'production',
+        type: 'number', value: 7, defaultValue: 2,
+      });
+      await storage.createEnvironment({ projectId: project.id, name: 'staging' });
+      const backfilled = await storage.getFlag(project.id, 'ratio', 'staging');
+      expect(backfilled).not.toBeNull();
+      expect(backfilled?.type).toBe('number');
+      expect(backfilled?.value).toBe(7);
+      expect(backfilled?.defaultValue).toBe(2);
+    });
+  });
 });

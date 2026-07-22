@@ -5,6 +5,8 @@ import {
   updateFlag,
   deleteFlag,
   Flag,
+  FlagType,
+  FlagValue,
   UpdateFlagPayload,
 } from '../api/flags';
 import { Toggle } from '../components/Toggle';
@@ -25,6 +27,9 @@ interface FlagFormState {
   name: string;
   description: string;
   enabled: boolean;
+  type: FlagType;
+  value: string;
+  defaultValue: string;
   targetingUserIds: string[];
   targetingUserIdInput: string;
   targetingAttributes: { key: string; values: string }[];
@@ -41,33 +46,42 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
-function evaluateFlag(form: FlagFormState, userId: string, attrs: { key: string; value: string }[]): boolean {
-  if (!form.enabled) return false;
+function evaluateFlag(form: FlagFormState, userId: string, attrs: { key: string; value: string }[]): FlagValue {
+  const active = form.type === 'boolean' ? true : (parseTypedValue(form.type, form.value) ?? '');
+  const fallback = form.type === 'boolean' ? false : (parseTypedValue(form.type, form.defaultValue) ?? '');
+
+  if (!form.enabled) return fallback;
 
   const hasUserIds = form.targetingUserIds.length > 0;
   const hasAttrs = form.targetingAttributes.some(a => a.key.trim());
   const hasTargeting = hasUserIds || hasAttrs;
 
   if (hasTargeting) {
-    if (hasUserIds && userId && form.targetingUserIds.includes(userId)) return true;
-    if (hasAttrs) {
+    let matched = false;
+    if (hasUserIds && userId && form.targetingUserIds.includes(userId)) matched = true;
+    if (!matched && hasAttrs) {
       const attrMap: Record<string, string> = {};
       for (const a of attrs) { if (a.key.trim()) attrMap[a.key.trim()] = a.value; }
       for (const ta of form.targetingAttributes) {
         if (!ta.key.trim()) continue;
         const vals = ta.values.split(',').map(s => s.trim()).filter(Boolean);
-        if (attrMap[ta.key.trim()] && vals.includes(attrMap[ta.key.trim()])) return true;
+        if (attrMap[ta.key.trim()] && vals.includes(attrMap[ta.key.trim()])) { matched = true; break; }
       }
     }
-    if (!form.rolloutPercentage) return false;
+    if (!matched && !form.rolloutPercentage) return fallback;
+    if (!matched && form.rolloutPercentage) {
+      if (!userId) return fallback;
+      return (hashString(userId) % 100) < Number(form.rolloutPercentage) ? active : fallback;
+    }
+    if (matched) return active;
   }
 
   if (form.rolloutPercentage) {
-    if (!userId) return false;
-    return (hashString(userId) % 100) < Number(form.rolloutPercentage);
+    if (!userId) return fallback;
+    return (hashString(userId) % 100) < Number(form.rolloutPercentage) ? active : fallback;
   }
 
-  return true;
+  return active;
 }
 
 function emptyForm(): FlagFormState {
@@ -76,6 +90,9 @@ function emptyForm(): FlagFormState {
     name: '',
     description: '',
     enabled: false,
+    type: 'boolean',
+    value: '',
+    defaultValue: '',
     targetingUserIds: [],
     targetingUserIdInput: '',
     targetingAttributes: [],
@@ -89,6 +106,9 @@ function flagToForm(flag: Flag): FlagFormState {
     name: flag.name,
     description: flag.description ?? '',
     enabled: flag.enabled,
+    type: flag.type,
+    value: flag.value !== undefined ? String(flag.value) : '',
+    defaultValue: flag.defaultValue !== undefined ? String(flag.defaultValue) : '',
     targetingUserIds: flag.targeting?.userIds ?? [],
     targetingUserIdInput: '',
     targetingAttributes: Object.entries(flag.targeting?.attributes ?? {}).map(([k, v]) => ({
@@ -97,6 +117,15 @@ function flagToForm(flag: Flag): FlagFormState {
     })),
     rolloutPercentage: flag.rollout != null ? String(flag.rollout.percentage) : '',
   };
+}
+
+function parseTypedValue(type: FlagType, raw: string): FlagValue | undefined {
+  if (type === 'boolean') return undefined;
+  if (type === 'number') {
+    const n = Number(raw);
+    return raw.trim() === '' || Number.isNaN(n) ? undefined : n;
+  }
+  return raw; // string: stringa grezza (anche vuota è valida)
 }
 
 function formToPayload(form: FlagFormState) {
@@ -119,6 +148,9 @@ function formToPayload(form: FlagFormState) {
     key: form.key,
     name: form.name,
     description: form.description || undefined,
+    type: form.type,
+    value: parseTypedValue(form.type, form.value),
+    defaultValue: parseTypedValue(form.type, form.defaultValue),
     targeting: hasTargeting ? { userIds: userIds.length ? userIds : undefined, attributes: Object.keys(attributes).length ? attributes : undefined } : undefined,
     rollout: rolloutPct != null ? { percentage: rolloutPct } : undefined,
   };
@@ -226,6 +258,9 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
           enabled: form.enabled,
           targeting: payload.targeting ?? null,
           rollout: payload.rollout ?? null,
+          ...(form.type !== 'boolean'
+            ? { value: payload.value, defaultValue: payload.defaultValue }
+            : {}),
         };
         await updateFlag(editingFlag.key, projectId, environment, updates);
         showToast('Flag updated');
@@ -234,6 +269,9 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
           key: payload.key,
           name: payload.name,
           description: payload.description,
+          type: payload.type,
+          value: payload.value,
+          defaultValue: payload.defaultValue,
           targeting: payload.targeting,
           rollout: payload.rollout,
         });
@@ -352,14 +390,18 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
                   <span style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{flag.key}</span>
                   {flag.targeting && <Badge color="blue">Targeting</Badge>}
                   {flag.rollout && <Badge color="purple">Rollout {flag.rollout.percentage}%</Badge>}
+                  {flag.type !== 'boolean' && <Badge color="gray">{flag.type}</Badge>}
                 </div>
                 <span style={{ fontSize: 13, color: '#374151' }}>{flag.name}</span>
               </div>
               <div onClick={e => e.stopPropagation()}>
-                <Toggle
-                  checked={flag.enabled}
-                  onChange={() => void handleToggleEnabled(flag)}
-                />
+                {flag.type === 'boolean' ? (
+                  <Toggle checked={flag.enabled} onChange={() => void handleToggleEnabled(flag)} />
+                ) : (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: flag.enabled ? '#065f46' : '#6b7280' }}>
+                    {String(flag.enabled ? flag.value : flag.defaultValue)}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -405,6 +447,49 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
             placeholder="e.g. dark-mode"
           />
         </div>
+
+        {/* type */}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Type</label>
+          {editingFlag ? (
+            <input style={{ ...inputStyle, background: '#f9fafb' }} value={form.type} readOnly />
+          ) : (
+            <select
+              style={inputStyle}
+              value={form.type}
+              onChange={e => setForm(f => ({ ...f, type: e.target.value as FlagType }))}
+            >
+              <option value="boolean">boolean</option>
+              <option value="number">number</option>
+              <option value="string">string</option>
+            </select>
+          )}
+        </div>
+
+        {form.type !== 'boolean' && (
+          <>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Value (when on) *</label>
+              <input
+                style={inputStyle}
+                type={form.type === 'number' ? 'number' : 'text'}
+                value={form.value}
+                onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
+                placeholder={form.type === 'number' ? 'e.g. 42' : 'e.g. blue'}
+              />
+            </div>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Default value (when off) *</label>
+              <input
+                style={inputStyle}
+                type={form.type === 'number' ? 'number' : 'text'}
+                value={form.defaultValue}
+                onChange={e => setForm(f => ({ ...f, defaultValue: e.target.value }))}
+                placeholder={form.type === 'number' ? 'e.g. 0' : 'e.g. gray'}
+              />
+            </div>
+          </>
+        )}
 
         {/* description */}
         <div style={fieldStyle}>
@@ -569,11 +654,12 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
               </div>
               {(() => {
                 const result = evaluateFlag(form, previewUserId, previewAttrs);
+                const isTruthy = result !== false && result !== '' && result !== 0;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
                     <span style={{ color: '#4b5563' }}>→ Result:</span>
-                    <span style={{ color: result ? '#065f46' : '#991b1b', background: result ? '#d1fae5' : '#fee2e2', padding: '2px 10px', borderRadius: 999 }}>
-                      {result ? 'true' : 'false'}
+                    <span style={{ color: isTruthy ? '#065f46' : '#991b1b', background: isTruthy ? '#d1fae5' : '#fee2e2', padding: '2px 10px', borderRadius: 999 }}>
+                      {String(result)}
                     </span>
                   </div>
                 );
@@ -586,17 +672,28 @@ export function FlagsPage({ projectId, projectName, environment }: FlagsPageProp
         <div style={{ display: 'flex', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
           <button
             onClick={() => void handleSave()}
-            disabled={saving || !form.key || !form.name}
+            disabled={
+              saving || !form.key || !form.name ||
+              (form.type !== 'boolean' && (form.value.trim() === '' || form.defaultValue.trim() === ''))
+            }
             style={{
               flex: 1,
               padding: '10px',
-              background: saving || !form.key || !form.name ? '#9ca3af' : '#1d4ed8',
+              background:
+                saving || !form.key || !form.name ||
+                (form.type !== 'boolean' && (form.value.trim() === '' || form.defaultValue.trim() === ''))
+                  ? '#9ca3af'
+                  : '#1d4ed8',
               color: 'white',
               border: 'none',
               borderRadius: 6,
               fontSize: 14,
               fontWeight: 500,
-              cursor: saving || !form.key || !form.name ? 'not-allowed' : 'pointer',
+              cursor:
+                saving || !form.key || !form.name ||
+                (form.type !== 'boolean' && (form.value.trim() === '' || form.defaultValue.trim() === ''))
+                  ? 'not-allowed'
+                  : 'pointer',
             }}
           >
             {saving ? 'Saving...' : 'Save'}

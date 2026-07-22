@@ -137,4 +137,65 @@ describe('Admin Flags Routes', () => {
       .set('Cookie', `rf_session=${sessionToken}`);
     expect(get.status).toBe(404);
   });
+
+  it('creates a number flag with value and defaultValue', async () => {
+    const res = await request(app)
+      .post('/admin/flags')
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ projectId, environment: envName, key: 'limit', name: 'Limit',
+        type: 'number', value: 5, defaultValue: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe('number');
+    expect(res.body.value).toBe(5);
+    expect(res.body.defaultValue).toBe(1);
+  });
+
+  it('rejects a number flag missing defaultValue', async () => {
+    const res = await request(app)
+      .post('/admin/flags')
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ projectId, environment: envName, key: 'bad', name: 'Bad',
+        type: 'number', value: 5 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects changing type via PATCH', async () => {
+    await request(app).post('/admin/flags').set('Cookie', `rf_session=${sessionToken}`)
+      .send({ projectId, environment: envName, key: 'switch', name: 'Switch' });
+    const res = await request(app)
+      .patch(`/admin/flags/switch?projectId=${projectId}&environment=${envName}`)
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ type: 'number' });
+    expect(res.status).toBe(400);
+  });
+
+  it('updates value and defaultValue on a typed flag via PATCH', async () => {
+    await request(app)
+      .post('/admin/flags')
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ projectId, environment: envName, key: 'limit2', name: 'Limit2',
+        type: 'number', value: 5, defaultValue: 1 });
+
+    const res = await request(app)
+      .patch(`/admin/flags/limit2?projectId=${projectId}&environment=${envName}`)
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ value: 10 });
+    expect(res.status).toBe(200);
+    expect(res.body.value).toBe(10);
+    expect(res.body.defaultValue).toBe(1);
+  });
+
+  it('rejects an invalid value type on PATCH for a typed flag', async () => {
+    await request(app)
+      .post('/admin/flags')
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ projectId, environment: envName, key: 'limit3', name: 'Limit3',
+        type: 'number', value: 5, defaultValue: 1 });
+
+    const res = await request(app)
+      .patch(`/admin/flags/limit3?projectId=${projectId}&environment=${envName}`)
+      .set('Cookie', `rf_session=${sessionToken}`)
+      .send({ value: 'not-a-number' });
+    expect(res.status).toBe(400);
+  });
 });
