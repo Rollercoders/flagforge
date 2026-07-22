@@ -483,4 +483,104 @@ describe('Evaluate Routes', () => {
       expect(response.status).toBe(401);
     });
   });
+
+  describe('Typed flag values', () => {
+    it('returns typed value and legacy enabled for a number flag', async () => {
+      await storage.createFlag({
+        key: 'limit',
+        name: 'Limit',
+        enabled: true,
+        environment: 'test',
+        projectId,
+        type: 'number',
+        value: 42,
+        defaultValue: 0
+      });
+
+      const response = await request(app)
+        .post('/api/evaluate/limit')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'u1' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.value).toBe(42);
+      expect(response.body.enabled).toBe(true); // gate on
+      expect(response.body.metadata.type).toBe('number');
+    });
+
+    it('returns default typed value and legacy enabled=false when gate is off', async () => {
+      await storage.createFlag({
+        key: 'limit-off',
+        name: 'Limit Off',
+        enabled: false,
+        environment: 'test',
+        projectId,
+        type: 'number',
+        value: 42,
+        defaultValue: 0
+      });
+
+      const response = await request(app)
+        .post('/api/evaluate/limit-off')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'u1' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.value).toBe(0);
+      expect(response.body.enabled).toBe(false);
+    });
+
+    it('defaults metadata.type to boolean when flag has no type', async () => {
+      const response = await request(app)
+        .post('/api/evaluate/flag-a')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'user-123' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.metadata.type).toBe('boolean');
+    });
+
+    it('all endpoint returns typed values', async () => {
+      await storage.createFlag({
+        key: 'limit',
+        name: 'Limit',
+        enabled: true,
+        environment: 'test',
+        projectId,
+        type: 'number',
+        value: 42,
+        defaultValue: 0
+      });
+
+      const response = await request(app)
+        .post('/api/evaluate/all')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ userId: 'u1' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.limit).toBe(42);
+    });
+
+    it('batch endpoint returns typed values', async () => {
+      await storage.createFlag({
+        key: 'limit',
+        name: 'Limit',
+        enabled: true,
+        environment: 'test',
+        projectId,
+        type: 'number',
+        value: 42,
+        defaultValue: 0
+      });
+
+      const response = await request(app)
+        .post('/api/evaluate')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ flags: ['limit', 'flag-a'], context: { userId: 'u1' } });
+
+      expect(response.status).toBe(200);
+      expect(response.body.limit).toBe(42);
+      expect(response.body['flag-a']).toBe(true);
+    });
+  });
 });
