@@ -45,7 +45,7 @@ beforeEach(() => {
   storage = new FakeStorage();
   tools = buildTools(storage as unknown as Storage, new FlagEvaluator());
   storage.projects.push({ id: 'p1', name: 'App', createdAt: 't' });
-  storage.environments.push({ id: 'e1', projectId: 'p1', name: 'production', key: 'ff_secret', createdAt: 't' });
+  storage.environments.push({ id: 'e1', projectId: 'p1', name: 'production', key: 'ff_secret', secretKey: 'ffs_secret', createdAt: 't' });
 });
 
 describe('buildTools', () => {

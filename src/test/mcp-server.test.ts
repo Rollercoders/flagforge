@@ -7,7 +7,7 @@ import { Storage, Project, Environment, Flag } from '../types.js';
 
 class FakeStorage implements Partial<Storage> {
   projects: Project[] = [{ id: 'p1', name: 'App', createdAt: 't' }];
-  environments: Environment[] = [{ id: 'e1', projectId: 'p1', name: 'production', key: 'ff_x', createdAt: 't' }];
+  environments: Environment[] = [{ id: 'e1', projectId: 'p1', name: 'production', key: 'ff_x', secretKey: 'ffs_x', createdAt: 't' }];
   flags: Flag[] = [];
   async getAllProjects() { return this.projects; }
   async getEnvironmentsByProject(id: string) { return this.environments.filter(e => e.projectId === id); }
