@@ -12,6 +12,7 @@ Open-source, on-premise feature flagging platform built for speed and simplicity
 
 - **Multiple Storage Backends**: SQLite or JSON file
 - **Multi-Environment Support**: dev, staging, production, or custom environments
+- **Typed Flags**: boolean, number or string flags with an active value and a default (off) value
 - **Targeting Rules**: Enable flags for specific users or attributes
 - **Percentage Rollout**: Gradual rollout to a percentage of users
 - **REST API**: Simple HTTP API for integration
@@ -132,6 +133,8 @@ The drawer on the right lets you configure:
 | **Name** | Human-readable label (auto-generates the key on creation) |
 | **Key** | Immutable identifier used in API calls (e.g. `dark-mode`) |
 | **Description** | Optional free-text note |
+| **Type** | `boolean` (default), `number` or `string`. Set on creation and **immutable** afterwards |
+| **Value (when on)** / **Default value (when off)** | Only shown for `number`/`string` flags; required. The typed value returned when the flag is on (enabled + targeting/rollout match) vs. off/no-match |
 | **Enabled** | Master on/off switch (new flags start disabled) |
 | **Targeting — User IDs** | Comma-tag input; the flag returns `true` only for listed user IDs |
 | **Targeting — Attributes** | Key/value rules (e.g. `plan = premium, enterprise`) |
@@ -204,14 +207,18 @@ Response:
 ```json
 {
   "key": "new-checkout-flow",
+  "value": true,
   "enabled": true,
   "metadata": {
     "flagEnabled": true,
+    "type": "boolean",
     "hasTargeting": false,
     "hasRollout": false
   }
 }
 ```
+
+`value` holds the resolved, typed value for the flag: for `boolean` flags it's `true`/`false` (same as `enabled`); for `number`/`string` flags it's the flag's active `value` when on, or its `defaultValue` when off/no-match. `enabled` is kept for backward compatibility. The flag's `type` is set at creation time in the web app's flag editor and is immutable afterwards.
 
 ## Advanced Features
 
