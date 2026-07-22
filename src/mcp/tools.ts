@@ -37,7 +37,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
   return [
     {
       name: 'list_projects',
-      description: 'Elenca i progetti FlagForge (id e nome).',
+      description: 'Lists FlagForge projects (id and name).',
       inputSchema: {},
       handler: async () => {
         const projects = await storage.getAllProjects();
@@ -47,7 +47,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     {
       name: 'list_environments',
       description:
-        'Elenca gli environment (per nome) di un progetto. Non espone le API key. Usa il campo `name` come valore di `environment` negli altri tool (list_flags/set_flag/evaluate_flag).',
+        'Lists the environments (by name) of a project. Does not expose API keys. Use the `name` field as the `environment` value in the other tools (list_flags/set_flag/evaluate_flag).',
       inputSchema: { projectId: z.string() },
       handler: async (args) => {
         const projectId = args.projectId as string;
@@ -57,7 +57,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     },
     {
       name: 'list_flags',
-      description: 'Elenca tutti i feature flag di un progetto+environment.',
+      description: 'Lists all feature flags for a project+environment.',
       inputSchema: { projectId: z.string(), environment: z.string() },
       handler: async (args) => {
         const flags = await storage.getAllFlags(args.projectId as string, args.environment as string);
@@ -67,7 +67,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     {
       name: 'set_flag',
       description:
-        'Crea o aggiorna (upsert) un feature flag in un progetto+environment. Se non esiste lo crea, altrimenti applica i campi passati.',
+        'Creates or updates (upsert) a feature flag in a project+environment. Creates it if it does not exist, otherwise applies the fields passed in.',
       inputSchema: {
         projectId: z.string(),
         environment: z.string(),
@@ -85,7 +85,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
         if (args.rollout !== undefined) {
           const rolloutResult = rolloutSchema.safeParse(args.rollout);
           if (!rolloutResult.success) {
-            return fail(`rollout non valido: ${rolloutResult.error.message}`);
+            return fail(`invalid rollout: ${rolloutResult.error.message}`);
           }
         }
 
@@ -97,8 +97,8 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
         const envNames = envs.map(e => e.name);
         if (!envNames.includes(environment)) {
           return fail(
-            `Environment "${environment}" inesistente per il progetto. Environment validi: ${envNames.join(', ') || '(nessuno)'}. ` +
-            `Usa il campo "name" restituito da list_environments.`
+            `Environment "${environment}" does not exist for this project. Valid environments: ${envNames.join(', ') || '(none)'}. ` +
+            `Use the "name" field returned by list_environments.`
           );
         }
 
@@ -124,7 +124,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
             defaultValue: flagType === 'boolean' ? undefined : (args.defaultValue as Flag['defaultValue']),
           });
           const forEnv = created.find(f => f.environment === environment);
-          if (!forEnv) return fail('Flag creato ma non trovato per l’environment richiesto.');
+          if (!forEnv) return fail('Flag created but not found for the requested environment.');
           const updates: Partial<Flag> = {};
           if (args.enabled !== undefined) updates.enabled = args.enabled as boolean;
           const result = Object.keys(updates).length ? await storage.updateFlag(forEnv.id, updates) : forEnv;
@@ -159,7 +159,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     {
       name: 'evaluate_flag',
       description:
-        'Valuta se un flag è attivo per un dato contesto (userId/attributes) in un progetto+environment. Ritorna anche `value` (il valore risolto in base al tipo del flag) e `reason`, la motivazione dell’esito (valori: disabled, targeting-miss, rollout-excluded, enabled).',
+        'Evaluates whether a flag is enabled for a given context (userId/attributes) in a project+environment. Also returns `value` (the resolved value based on the flag type) and `reason`, the explanation for the outcome (values: disabled, targeting-miss, rollout-excluded, enabled).',
       inputSchema: {
         projectId: z.string(),
         environment: z.string(),
@@ -169,7 +169,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
       },
       handler: async (args) => {
         const flag = await storage.getFlag(args.projectId as string, args.key as string, args.environment as string);
-        if (!flag) return fail('Flag non trovato per il contesto richiesto.');
+        if (!flag) return fail('Flag not found for the requested context.');
         const context: FlagEvaluationContext = {
           userId: args.userId as string | undefined,
           attributes: args.attributes as Record<string, string> | undefined,

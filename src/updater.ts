@@ -18,9 +18,9 @@ function isPermissionError(res: RunResult): boolean {
 }
 
 /**
- * Confronto semplice di versioni "X.Y.Z" (senza pre-release/build metadata).
- * Ritorna un numero negativo se a < b, positivo se a > b, 0 se uguali.
- * Componenti mancanti o non numerici sono trattati come 0.
+ * Simple comparison of "X.Y.Z" versions (no pre-release/build metadata).
+ * Returns a negative number if a < b, positive if a > b, 0 if equal.
+ * Missing or non-numeric components are treated as 0.
  */
 function compareVersions(a: string, b: string): number {
   const parse = (v: string): number[] =>
@@ -46,38 +46,38 @@ export function runUpdate(deps: UpdaterDeps): void {
 
   const view = run('npm', ['view', 'flagforge', 'version']);
   if (view.status !== 0) {
-    log('Impossibile determinare l’ultima versione su npm.');
+    log('Unable to determine the latest version on npm.');
     if (view.stderr.trim()) log(view.stderr.trim());
     return;
   }
   const latest = view.stdout.trim();
   if (!latest) {
-    log('Impossibile determinare l’ultima versione su npm.');
+    log('Unable to determine the latest version on npm.');
     return;
   }
 
   const cmp = compareVersions(currentVersion, latest);
 
   if (cmp === 0) {
-    log(`Già all’ultima versione (${currentVersion}).`);
+    log(`Already on the latest version (${currentVersion}).`);
     return;
   }
 
   if (cmp > 0) {
-    log(`Versione locale (${currentVersion}) più recente di quella pubblicata (${latest}): nessun aggiornamento.`);
+    log(`Local version (${currentVersion}) is newer than the published one (${latest}): nothing to update.`);
     return;
   }
 
   const install = run('npm', ['install', '-g', 'flagforge@latest']);
   if (install.status !== 0) {
     if (isPermissionError(install)) {
-      log('Impossibile aggiornare: permessi insufficienti.');
-      log('Esegui come root:');
+      log('Unable to update: insufficient permissions.');
+      log('Run as root:');
       log('  npm i -g flagforge@latest');
       if (hasCommand('nodenv')) log('  nodenv rehash');
       return;
     }
-    log('Aggiornamento fallito.');
+    log('Update failed.');
     if (install.stderr.trim()) log(install.stderr.trim());
     return;
   }
@@ -85,9 +85,9 @@ export function runUpdate(deps: UpdaterDeps): void {
   if (hasCommand('nodenv')) {
     run('nodenv', ['rehash']);
   } else {
-    log('nodenv non rilevato: salto il rehash.');
+    log('nodenv not detected: skipping rehash.');
   }
 
-  log(`Aggiornato da ${currentVersion} a ${latest}.`);
-  log('Riavvia il servizio per applicare la nuova versione.');
+  log(`Updated from ${currentVersion} to ${latest}.`);
+  log('Restart the service to apply the new version.');
 }

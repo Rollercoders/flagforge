@@ -33,8 +33,8 @@ export interface ServerConfig {
 }
 
 /**
- * Determina se l'endpoint MCP va montato: solo se il token è presente e non vuoto
- * (dopo trim). Funzione pura, estratta per essere testabile senza avviare un listener reale.
+ * Determines whether the MCP endpoint should be mounted: only if the token is present and non-empty
+ * (after trim). Pure function, extracted to be testable without starting a real listener.
  */
 export function shouldMountMcp(token?: string): boolean {
   return typeof token === 'string' && token.trim() !== '';
@@ -131,7 +131,7 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
     const server = app.listen(config.port, () => resolve());
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        reject(new Error(`La porta ${config.port} è già in uso. Scegli un'altra porta o libera quella attuale.`));
+        reject(new Error(`Port ${config.port} is already in use. Choose another port or free the current one.`));
       } else {
         reject(err);
       }

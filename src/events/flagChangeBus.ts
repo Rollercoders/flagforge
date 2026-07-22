@@ -11,7 +11,7 @@ export class FlagChangeBus {
   private emitter = new EventEmitter();
 
   constructor() {
-    // Molte connessioni SSE possono sottoscrivere: alza il limite per evitare il warning di leak.
+    // Many SSE connections can subscribe: raise the limit to avoid the leak warning.
     this.emitter.setMaxListeners(0);
   }
 

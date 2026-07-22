@@ -14,7 +14,7 @@ export function createMcpRouter(storage: Storage, evaluator: FlagEvaluator, toke
   const tools = buildTools(storage, evaluator);
 
   router.post('/', async (req, res) => {
-    // Un McpServer + transport nuovo per richiesta (stateless).
+    // A new McpServer + transport per request (stateless).
     const server = new McpServer({ name: 'flagforge', version: '1.0.0' });
     for (const t of tools) {
       server.registerTool(
