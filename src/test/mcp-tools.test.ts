@@ -140,4 +140,60 @@ describe('buildTools', () => {
     const res = await tool(tools, 'evaluate_flag').handler({ projectId: 'p1', environment: 'production', key: 'ghost' });
     expect(res.isError).toBe(true);
   });
+
+  it('set_flag creates a number flag', async () => {
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit', name: 'Limit',
+      type: 'number', value: 9, defaultValue: 2, enabled: true,
+    });
+    expect(res.isError).toBeFalsy();
+    const flag = await storage.getFlag('p1', 'limit', 'production');
+    expect(flag?.type).toBe('number');
+    expect(flag?.value).toBe(9);
+  });
+
+  it('evaluate_flag returns the resolved value', async () => {
+    await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit', name: 'Limit',
+      type: 'number', value: 9, defaultValue: 2, enabled: true,
+    });
+    const res = await tool(tools, 'evaluate_flag').handler({ projectId: 'p1', environment: 'production', key: 'limit', userId: 'u1' });
+    const payload = parse(res);
+    expect(payload.value).toBe(9);
+  });
+
+  it('set_flag rifiuta value non conforme al type dichiarato in creazione', async () => {
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'bad', name: 'Bad',
+      type: 'number', value: 'nine', defaultValue: 2,
+    });
+    expect(res.isError).toBe(true);
+    expect(storage.flags).toHaveLength(0);
+  });
+
+  it('set_flag rifiuta il cambio di type in update (immutabile)', async () => {
+    await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit2', name: 'Limit2',
+      type: 'number', value: 9, defaultValue: 2, enabled: true,
+    });
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit2', type: 'string',
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain('immutable');
+  });
+
+  it('set_flag aggiorna solo value su un flag typed esistente validando col type esistente', async () => {
+    await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit3', name: 'Limit3',
+      type: 'number', value: 9, defaultValue: 2, enabled: true,
+    });
+    const res = await tool(tools, 'set_flag').handler({
+      projectId: 'p1', environment: 'production', key: 'limit3', value: 42,
+    });
+    expect(res.isError).toBeFalsy();
+    const flag = await storage.getFlag('p1', 'limit3', 'production');
+    expect(flag?.value).toBe(42);
+    expect(flag?.defaultValue).toBe(2);
+  });
 });
