@@ -1,4 +1,4 @@
-import { Flag, FlagType, FlagValue } from './types';
+import { Flag, FlagType, FlagValue } from './types.js';
 
 export function normalizeFlagType(type: unknown): FlagType {
   return type === 'number' || type === 'string' ? type : 'boolean';
