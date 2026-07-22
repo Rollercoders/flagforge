@@ -1,0 +1,8 @@
+yarn lint
+echo "✅ ESLint passed successfully"
+
+yarn test
+echo "✅ Tests passed successfully"
+
+./scripts/check-branch.sh
+echo "✅ The current branch is not develop. Committing"
