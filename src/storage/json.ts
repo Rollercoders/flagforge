@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Storage, Flag, Project, Environment } from '../types.js';
+import { normalizeFlagType } from '../flagValue.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -35,6 +36,10 @@ export class JsonStorage implements Storage {
 
   private save(): void {
     fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2));
+  }
+
+  private normalizeFlag(flag: Flag): Flag {
+    return { ...flag, type: normalizeFlagType(flag.type) };
   }
 
   async createProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
@@ -77,7 +82,8 @@ export class JsonStorage implements Storage {
       seenKeys.add(flag.key);
       if (!this.data.flags.some(f => f.projectId === env.projectId && f.key === flag.key && f.environment === env.name)) {
         this.data.flags.push({ id: nanoid(), projectId: env.projectId, key: flag.key, name: flag.name,
-          description: flag.description, enabled: false, environment: env.name,
+          description: flag.description, enabled: false, type: normalizeFlagType(flag.type),
+          value: flag.value, defaultValue: flag.defaultValue, environment: env.name,
           targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now });
       }
     }
@@ -147,7 +153,8 @@ export class JsonStorage implements Storage {
     const created: Flag[] = [];
     for (const envName of envNames) {
       const newFlag: Flag = { id: nanoid(), projectId: flag.projectId, key: flag.key, name: flag.name,
-        description: flag.description, enabled: flag.enabled, environment: envName,
+        description: flag.description, enabled: flag.enabled, type: normalizeFlagType(flag.type),
+        value: flag.value, defaultValue: flag.defaultValue, environment: envName,
         targeting: flag.targeting, rollout: flag.rollout, createdAt: now, updatedAt: now };
       this.data.flags.push(newFlag);
       created.push(newFlag);
@@ -157,11 +164,14 @@ export class JsonStorage implements Storage {
   }
 
   async getFlag(projectId: string, key: string, environment: string): Promise<Flag | null> {
-    return this.data.flags.find(f => f.projectId === projectId && f.key === key && f.environment === environment) ?? null;
+    const flag = this.data.flags.find(f => f.projectId === projectId && f.key === key && f.environment === environment);
+    return flag ? this.normalizeFlag(flag) : null;
   }
 
   async getAllFlags(projectId: string, environment?: string): Promise<Flag[]> {
-    return this.data.flags.filter(f => f.projectId === projectId && (!environment || f.environment === environment));
+    return this.data.flags
+      .filter(f => f.projectId === projectId && (!environment || f.environment === environment))
+      .map(f => this.normalizeFlag(f));
   }
 
   async updateFlag(id: string, updates: Partial<Flag>): Promise<Flag> {

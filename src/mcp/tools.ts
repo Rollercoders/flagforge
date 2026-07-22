@@ -1,6 +1,7 @@
 import { z, ZodRawShape } from 'zod';
 import { Storage, Flag, FlagEvaluationContext } from '../types.js';
 import { FlagEvaluator } from '../evaluator.js';
+import { normalizeFlagType, validateTypedValues } from '../flagValue.js';
 
 export interface McpToolResult {
   content: Array<{ type: 'text'; text: string }>;
@@ -76,6 +77,9 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
         enabled: z.boolean().optional(),
         targeting: targetingSchema,
         rollout: rolloutSchema,
+        type: z.enum(['boolean', 'number', 'string']).optional(),
+        value: z.union([z.boolean(), z.number(), z.string()]).optional(),
+        defaultValue: z.union([z.boolean(), z.number(), z.string()]).optional(),
       },
       handler: async (args) => {
         if (args.rollout !== undefined) {
@@ -101,6 +105,10 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
         const existing = await storage.getFlag(projectId, key, environment);
 
         if (!existing) {
+          const flagType = normalizeFlagType(args.type);
+          const validation = validateTypedValues(flagType, args.value, args.defaultValue);
+          if (!validation.ok) return fail(validation.error);
+
           const name = (args.name as string | undefined) ?? key;
           const created = await storage.createFlag({
             projectId,
@@ -111,6 +119,9 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
             environment,
             targeting: args.targeting as Flag['targeting'],
             rollout: args.rollout as Flag['rollout'],
+            type: flagType,
+            value: flagType === 'boolean' ? undefined : (args.value as Flag['value']),
+            defaultValue: flagType === 'boolean' ? undefined : (args.defaultValue as Flag['defaultValue']),
           });
           const forEnv = created.find(f => f.environment === environment);
           if (!forEnv) return fail('Flag creato ma non trovato per l’environment richiesto.');
@@ -120,12 +131,27 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
           return ok(result);
         }
 
+        const existingType = normalizeFlagType(existing.type);
+        if (args.type !== undefined && normalizeFlagType(args.type) !== existingType) {
+          return fail('flag type is immutable');
+        }
+
         const updates: Partial<Flag> = {};
         if (args.name !== undefined) updates.name = args.name as string;
         if (args.description !== undefined) updates.description = args.description as string;
         if (args.enabled !== undefined) updates.enabled = args.enabled as boolean;
         if (args.targeting !== undefined) updates.targeting = args.targeting as Flag['targeting'];
         if (args.rollout !== undefined) updates.rollout = args.rollout as Flag['rollout'];
+
+        if (existingType !== 'boolean' && (args.value !== undefined || args.defaultValue !== undefined)) {
+          const nextValue = args.value !== undefined ? args.value : existing.value;
+          const nextDefaultValue = args.defaultValue !== undefined ? args.defaultValue : existing.defaultValue;
+          const validation = validateTypedValues(existingType, nextValue, nextDefaultValue);
+          if (!validation.ok) return fail(validation.error);
+          if (args.value !== undefined) updates.value = args.value as Flag['value'];
+          if (args.defaultValue !== undefined) updates.defaultValue = args.defaultValue as Flag['defaultValue'];
+        }
+
         const updated = await storage.updateFlag(existing.id, updates);
         return ok(updated);
       },
@@ -133,7 +159,7 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
     {
       name: 'evaluate_flag',
       description:
-        'Valuta se un flag è attivo per un dato contesto (userId/attributes) in un progetto+environment. Ritorna anche `reason`, la motivazione dell’esito (valori: disabled, targeting-miss, rollout-excluded, enabled).',
+        'Valuta se un flag è attivo per un dato contesto (userId/attributes) in un progetto+environment. Ritorna anche `value` (il valore risolto in base al tipo del flag) e `reason`, la motivazione dell’esito (valori: disabled, targeting-miss, rollout-excluded, enabled).',
       inputSchema: {
         projectId: z.string(),
         environment: z.string(),
@@ -148,8 +174,8 @@ export function buildTools(storage: Storage, evaluator: FlagEvaluator): McpToolD
           userId: args.userId as string | undefined,
           attributes: args.attributes as Record<string, string> | undefined,
         };
-        const { enabled, reason } = evaluator.explain(flag, context);
-        return ok({ key: flag.key, environment: flag.environment, enabled, reason });
+        const { enabled, value, reason } = evaluator.explain(flag, context);
+        return ok({ key: flag.key, environment: flag.environment, value, enabled, reason });
       },
     },
   ];

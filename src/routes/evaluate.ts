@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { Storage, FlagEvaluationContext } from '../types';
+import { Storage, FlagEvaluationContext, FlagValue } from '../types';
 import { FlagEvaluator } from '../evaluator';
 import { AuthRequest } from '../middleware/auth';
+import { resolveActiveValue } from '../flagValue';
 
 export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator) {
   const router = Router();
@@ -24,7 +25,7 @@ export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator)
       };
 
       const flags = await storage.getAllFlags(projectId, environment);
-      const results: Record<string, boolean> = {};
+      const results: Record<string, FlagValue> = {};
 
       for (const flag of flags) {
         results[flag.key] = evaluator.evaluate(flag, context);
@@ -61,13 +62,16 @@ export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator)
         attributes: body.attributes
       };
 
-      const result = evaluator.evaluate(flag, context);
+      const value = evaluator.evaluate(flag, context);
+      const gateOn = value === resolveActiveValue(flag);
 
       res.json({
         key: flag.key,
-        enabled: result,
+        value,
+        enabled: gateOn,
         metadata: {
           flagEnabled: flag.enabled,
+          type: flag.type ?? 'boolean',
           hasTargeting: !!flag.targeting,
           hasRollout: !!flag.rollout
         }
@@ -102,7 +106,7 @@ export function createEvaluateRouter(storage: Storage, evaluator: FlagEvaluator)
         attributes: context?.attributes
       };
 
-      const results: Record<string, boolean> = {};
+      const results: Record<string, FlagValue> = {};
 
       const projectId = req.apiKey?.projectId ?? '';
       for (const key of flags) {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Storage, FlagEvaluationContext } from '../types.js';
+import { Storage, FlagEvaluationContext, FlagValue } from '../types.js';
 import { FlagEvaluator } from '../evaluator.js';
 
 export function createAdminEvaluateRouter(storage: Storage, evaluator: FlagEvaluator) {
@@ -19,7 +19,7 @@ export function createAdminEvaluateRouter(storage: Storage, evaluator: FlagEvalu
       }
       const context: FlagEvaluationContext = { userId, attributes };
       const flags = await storage.getAllFlags(projectId, environment);
-      const results: Record<string, boolean> = {};
+      const results: Record<string, FlagValue> = {};
       for (const flag of flags) {
         results[flag.key] = evaluator.evaluate(flag, context);
       }
