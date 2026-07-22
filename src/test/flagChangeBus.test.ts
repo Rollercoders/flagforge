@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { FlagChangeBus, FlagChange } from '../events/flagChangeBus.js';
 
 describe('FlagChangeBus', () => {
-  it('consegna gli eventi ai sottoscrittori', () => {
+  it('delivers events to subscribers', () => {
     const bus = new FlagChangeBus();
     const received: FlagChange[] = [];
     bus.subscribe(c => received.push(c));
@@ -10,7 +10,7 @@ describe('FlagChangeBus', () => {
     expect(received).toEqual([{ projectId: 'p1', environment: 'production' }]);
   });
 
-  it('consegna a più sottoscrittori', () => {
+  it('delivers to multiple subscribers', () => {
     const bus = new FlagChangeBus();
     let a = 0, b = 0;
     bus.subscribe(() => a++);
@@ -20,7 +20,7 @@ describe('FlagChangeBus', () => {
     expect(b).toBe(1);
   });
 
-  it('unsubscribe ferma le notifiche', () => {
+  it('unsubscribe stops notifications', () => {
     const bus = new FlagChangeBus();
     const received: FlagChange[] = [];
     const unsub = bus.subscribe(c => received.push(c));

@@ -31,16 +31,16 @@ function printHelp(): void {
 FlagForge — open-source feature flagging platform
 
 Usage:
-  flagforge init      Configura e avvia FlagForge (wizard interattivo)
-  flagforge start     Avvia FlagForge usando il .env esistente
-  flagforge update    Aggiorna FlagForge all'ultima versione (dove i permessi lo consentono)
-  flagforge --help    Mostra questo messaggio
-  flagforge --version Mostra la versione
+  flagforge init      Configure and start FlagForge (interactive wizard)
+  flagforge start     Start FlagForge using the existing .env
+  flagforge update    Update FlagForge to the latest version (where permissions allow)
+  flagforge --help    Show this message
+  flagforge --version Show the version
 `);
 }
 
 function bail(): never {
-  cancel('Operazione annullata.');
+  cancel('Operation cancelled.');
   process.exit(0);
 }
 
@@ -50,46 +50,46 @@ async function runInit(): Promise<void> {
   const envPath = join(process.cwd(), '.env');
   if (existsSync(envPath)) {
     const overwrite = await confirm({
-      message: 'Esiste già un .env in questa cartella. Vuoi riconfigurare e sovrascriverlo?',
+      message: 'A .env already exists in this folder. Reconfigure and overwrite it?',
       initialValue: false,
     });
     if (isCancel(overwrite)) bail();
     if (!overwrite) {
-      log.info('Mantengo il .env esistente. Avvio con la configurazione attuale…');
+      log.info('Keeping the existing .env. Starting with the current configuration…');
       await runStart();
       return;
     }
   }
 
   const portRaw = await text({
-    message: 'Su quale porta vuoi avviare FlagForge?',
+    message: 'Which port should FlagForge run on?',
     initialValue: '6789',
     validate: (v) => {
       const n = Number(v);
-      if (!Number.isInteger(n) || n < 1 || n > 65535) return 'Inserisci una porta valida (1-65535).';
+      if (!Number.isInteger(n) || n < 1 || n > 65535) return 'Enter a valid port (1-65535).';
       return undefined;
     },
   });
   if (isCancel(portRaw)) bail();
 
   const storageType = await select({
-    message: 'Quale storage vuoi usare?',
+    message: 'Which storage do you want to use?',
     options: [
-      { value: 'sqlite', label: 'SQLite (consigliato)' },
-      { value: 'json', label: 'File JSON' },
+      { value: 'sqlite', label: 'SQLite (recommended)' },
+      { value: 'json', label: 'JSON file' },
     ],
     initialValue: 'sqlite',
   });
   if (isCancel(storageType)) bail();
 
   const storagePath = await text({
-    message: 'Percorso dello storage:',
+    message: 'Storage path:',
     initialValue: defaultStoragePath(storageType as 'sqlite' | 'json'),
   });
   if (isCancel(storagePath)) bail();
 
   const adminPassword = await password({
-    message: 'Admin password (lascia vuoto per generarne una automaticamente):',
+    message: 'Admin password (leave empty to auto-generate one):',
   });
   if (isCancel(adminPassword)) bail();
 
@@ -110,11 +110,11 @@ async function runInit(): Promise<void> {
 
   const config = buildConfigFromAnswers(answers);
 
-  // Crea la cartella data/ (deriva dal path dello storage)
+  // Create the data/ folder (derived from the storage path)
   const dataDir = dirname(join(process.cwd(), config.storagePath));
   mkdirSync(dataDir, { recursive: true });
 
-  // Scrive .env (senza ancora la password generata; verrà aggiunta dopo l'avvio se generata)
+  // Write .env (without the generated password yet; it's added after startup if generated)
   writeFileSync(envPath, renderEnvFile(config), 'utf8');
 
   await launch(config, envPath);
@@ -122,8 +122,8 @@ async function runInit(): Promise<void> {
   if (mcpToken) {
     note(
       `MCP endpoint: http://<host>:${config.port}/mcp\n` +
-      `Token (salvato in .env):\n  ${mcpToken}\n\n` +
-      `Config per il client MCP (sostituisci <host>):\n` +
+      `Token (saved in .env):\n  ${mcpToken}\n\n` +
+      `MCP client config (replace <host>):\n` +
       JSON.stringify(
         { mcpServers: { flagforge: { url: `http://<host>:${config.port}/mcp`, headers: { Authorization: `Bearer ${mcpToken}` } } } },
         null,
@@ -133,16 +133,16 @@ async function runInit(): Promise<void> {
     );
   }
 
-  outro('FlagForge è pronto. Buon feature-flagging!');
+  outro('FlagForge is ready. Happy feature-flagging!');
 }
 
 async function runStart(): Promise<void> {
   const envPath = join(process.cwd(), '.env');
   if (!existsSync(envPath)) {
-    console.error('Nessun .env trovato in questa cartella. Esegui prima `flagforge init`.');
+    console.error('No .env found in this folder. Run `flagforge init` first.');
     process.exit(1);
   }
-  // Carica .env tramite dotenv senza sovrascrivere variabili già presenti in process.env.
+  // Load .env via dotenv without overriding variables already present in process.env.
   dotenv.config({ path: envPath, override: false });
 
   const config: ServerConfig = {
@@ -153,7 +153,7 @@ async function runStart(): Promise<void> {
     mcpToken: process.env.MCP_TOKEN,
   };
   await launch(config, envPath);
-  outro('FlagForge è in esecuzione.');
+  outro('FlagForge is running.');
 }
 
 function runRealUpdate(): void {
@@ -182,22 +182,22 @@ async function launch(config: ServerConfig, envPath: string): Promise<void> {
   try {
     const result = await startServer(config);
 
-    // Persisti la password generata su .env, così `start` la riusa.
+    // Persist the generated password to .env so `start` reuses it.
     if (result.generatedPassword) {
       try {
         const current = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
         const sep = current.endsWith('\n') || current === '' ? '' : '\n';
         writeFileSync(envPath, `${current}${sep}ADMIN_PASSWORD=${result.adminPassword}\n`, 'utf8');
       } catch {
-        // non bloccante
+        // non-blocking
       }
       note(
-        `Admin password (generata):\n  ${result.adminPassword}\n\nSalvata in .env — conservala.`,
-        'Credenziali'
+        `Admin password (generated):\n  ${result.adminPassword}\n\nSaved in .env — keep it safe.`,
+        'Credentials'
       );
     }
 
-    note(`FlagForge è in esecuzione su:\n  ${result.url}`, 'Pronto');
+    note(`FlagForge is running at:\n  ${result.url}`, 'Ready');
   } catch (err) {
     console.error((err as Error).message ?? err);
     process.exit(1);
@@ -226,7 +226,7 @@ async function main(): Promise<void> {
       printHelp();
       break;
     default:
-      console.error(`Comando sconosciuto: ${cmd}`);
+      console.error(`Unknown command: ${cmd}`);
       printHelp();
       process.exit(1);
   }

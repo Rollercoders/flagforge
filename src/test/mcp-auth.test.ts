@@ -11,22 +11,22 @@ function app(token: string) {
 }
 
 describe('mcpBearerAuth', () => {
-  it('401 se manca lʼheader Authorization', async () => {
+  it('401 if the Authorization header is missing', async () => {
     const res = await request(app('secret')).get('/x');
     expect(res.status).toBe(401);
   });
 
-  it('401 se il token è errato', async () => {
+  it('401 if the token is wrong', async () => {
     const res = await request(app('secret')).get('/x').set('Authorization', 'Bearer wrong');
     expect(res.status).toBe(401);
   });
 
-  it('401 se lo schema non è Bearer', async () => {
+  it('401 if the scheme is not Bearer', async () => {
     const res = await request(app('secret')).get('/x').set('Authorization', 'secret');
     expect(res.status).toBe(401);
   });
 
-  it('passa oltre col token corretto', async () => {
+  it('passes through with the correct token', async () => {
     const res = await request(app('secret')).get('/x').set('Authorization', 'Bearer secret');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });

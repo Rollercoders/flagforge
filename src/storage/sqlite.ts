@@ -62,7 +62,7 @@ export class SqliteStorage implements Storage {
       CREATE INDEX IF NOT EXISTS idx_environments_key ON environments(key);
     `);
 
-    // Migrazione idempotente: aggiunge le colonne dei flag tipizzati se mancano.
+    // Idempotent migration: adds the typed flag columns if missing.
     for (const stmt of [
       "ALTER TABLE flags ADD COLUMN type TEXT NOT NULL DEFAULT 'boolean'",
       'ALTER TABLE flags ADD COLUMN value TEXT',
@@ -71,7 +71,7 @@ export class SqliteStorage implements Storage {
       try {
         this.db.exec(stmt);
       } catch {
-        // colonna già presente: no-op
+        // column already present: no-op
       }
     }
 

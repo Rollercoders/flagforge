@@ -28,14 +28,14 @@ function app() {
   return a;
 }
 
-// Header richiesti dallo Streamable HTTP transport per una richiesta JSON-RPC.
+// Headers required by the Streamable HTTP transport for a JSON-RPC request.
 const HEADERS = {
   'Content-Type': 'application/json',
   Accept: 'application/json, text/event-stream',
 };
 
 describe('createMcpRouter', () => {
-  it('401 senza bearer token', async () => {
+  it('401 without bearer token', async () => {
     const res = await request(app())
       .post('/mcp')
       .set(HEADERS)
@@ -43,7 +43,7 @@ describe('createMcpRouter', () => {
     expect(res.status).toBe(401);
   });
 
-  it('tools/list elenca i 5 tool col token', async () => {
+  it('tools/list lists the 5 tools with the token', async () => {
     const res = await request(app())
       .post('/mcp')
       .set({ ...HEADERS, Authorization: `Bearer ${TOKEN}` })
@@ -54,7 +54,7 @@ describe('createMcpRouter', () => {
     expect(names).toEqual(['evaluate_flag', 'list_environments', 'list_flags', 'list_projects', 'set_flag']);
   });
 
-  it('tools/call set_flag poi list_flags riflette la scrittura', async () => {
+  it('tools/call set_flag then list_flags reflects the write', async () => {
     const agent = app();
     const set = await request(agent)
       .post('/mcp')
@@ -68,12 +68,12 @@ describe('createMcpRouter', () => {
   });
 });
 
-// Lo Streamable HTTP transport può rispondere in JSON o come SSE (text/event-stream).
-// Questo helper estrae il payload JSON-RPC da entrambi i formati.
+// The Streamable HTTP transport can respond in JSON or as SSE (text/event-stream).
+// This helper extracts the JSON-RPC payload from both formats.
 function parseJsonRpc(res: { text: string; body: unknown }): any {
   if (res.text && res.text.startsWith('event:')) {
     const line = res.text.split('\n').find(l => l.startsWith('data:'));
-    if (!line) throw new Error(`nessun data: nella risposta SSE:\n${res.text}`);
+    if (!line) throw new Error(`no data: line in SSE response:\n${res.text}`);
     return JSON.parse(line.slice('data:'.length).trim());
   }
   return res.body;

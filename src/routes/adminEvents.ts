@@ -9,9 +9,9 @@ export function createAdminEventsRouter(bus: FlagChangeBus): Router {
   const router = Router();
 
   router.get('/', (req, res) => {
-    // Un client che chiude bruscamente (es. abort) può far emettere un evento
-    // 'error' sul socket della response: senza un listener diventerebbe un'eccezione
-    // non gestita. La chiusura effettiva è comunque gestita da req.on('close') sotto.
+    // A client that closes abruptly (e.g. abort) can cause an 'error' event to be
+    // emitted on the response socket: without a listener it would become an
+    // unhandled exception. The actual close is still handled by req.on('close') below.
     res.on('error', () => {});
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -23,7 +23,7 @@ export function createAdminEventsRouter(bus: FlagChangeBus): Router {
       res.write(formatSseMessage(change));
     });
 
-    // Heartbeat: commento SSE per tenere viva la connessione attraverso proxy/timeout.
+    // Heartbeat: SSE comment to keep the connection alive across proxies/timeouts.
     const heartbeat = setInterval(() => {
       res.write(':\n\n');
     }, 25_000);
