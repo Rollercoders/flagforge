@@ -59,13 +59,13 @@ describe('JsonStorage', () => {
     it('returns a new ff_ key', async () => {
       const p = await storage.createProject({ name: 'App5' });
       const env = await storage.createEnvironment({ projectId: p.id, name: 'prod' });
-      const updated = await storage.regenerateEnvironmentKey(env.id);
+      const updated = await storage.regenerateEnvironmentKey(env.id, 'client');
       expect(updated.key).toMatch(/^ff_[a-zA-Z0-9_-]{32}$/);
       expect(updated.key).not.toBe(env.key);
     });
 
     it('throws for unknown envId', async () => {
-      await expect(storage.regenerateEnvironmentKey('nope')).rejects.toThrow('Environment not found');
+      await expect(storage.regenerateEnvironmentKey('nope', 'client')).rejects.toThrow('Environment not found');
     });
   });
 

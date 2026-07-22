@@ -1,4 +1,4 @@
-import { Storage, Project, Environment, Flag } from '../types.js';
+import { Storage, Project, Environment, Flag, ApiKeyRole } from '../types.js';
 import { FlagChangeBus } from '../events/flagChangeBus.js';
 
 export class EventEmittingStorage implements Storage {
@@ -13,12 +13,13 @@ export class EventEmittingStorage implements Storage {
   deleteProject(id: string): Promise<void> { return this.inner.deleteProject(id); }
 
   // Environments
-  createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment> { return this.inner.createEnvironment(env); }
+  createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key' | 'secretKey'>): Promise<Environment> { return this.inner.createEnvironment(env); }
   getEnvironmentsByProject(projectId: string): Promise<Environment[]> { return this.inner.getEnvironmentsByProject(projectId); }
   deleteEnvironment(id: string): Promise<void> { return this.inner.deleteEnvironment(id); }
   renameEnvironment(id: string, name: string): Promise<Environment> { return this.inner.renameEnvironment(id, name); }
-  regenerateEnvironmentKey(envId: string): Promise<Environment> { return this.inner.regenerateEnvironmentKey(envId); }
+  regenerateEnvironmentKey(envId: string, role: ApiKeyRole): Promise<Environment> { return this.inner.regenerateEnvironmentKey(envId, role); }
   getEnvironmentByKey(key: string): Promise<Environment | null> { return this.inner.getEnvironmentByKey(key); }
+  getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> { return this.inner.getEnvironmentByAnyKey(token); }
 
   // Flags — emit dopo mutazione
   async createFlag(flag: Omit<Flag, 'id' | 'createdAt' | 'updatedAt'>): Promise<Flag[]> {

@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { Storage, Flag, Project, Environment } from '../types.js';
+import { Storage, Flag, Project, Environment, ApiKeyRole } from '../types.js';
 import { normalizeFlagType } from '../flagValue.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,9 +29,21 @@ export class JsonStorage implements Storage {
     if (fs.existsSync(this.filePath)) {
       this.data = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')) as JsonData;
       if (!('adminKey' in this.data)) (this.data as any).adminKey = null;
+      await this.backfillSecretKeys();
     } else {
       this.save();
     }
+  }
+
+  async backfillSecretKeys(): Promise<void> {
+    let changed = false;
+    for (const env of this.data.environments) {
+      if (!env.secretKey) {
+        env.secretKey = `ffs_${nanoid(32)}`;
+        changed = true;
+      }
+    }
+    if (changed) this.save();
   }
 
   private save(): void {
@@ -67,12 +79,12 @@ export class JsonStorage implements Storage {
     this.save();
   }
 
-  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key'>): Promise<Environment> {
+  async createEnvironment(env: Omit<Environment, 'id' | 'createdAt' | 'key' | 'secretKey'>): Promise<Environment> {
     if (this.data.environments.some(e => e.projectId === env.projectId && e.name === env.name)) {
       throw new Error(`Environment '${env.name}' already exists in this project`);
     }
     const now = new Date().toISOString();
-    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, key: `ff_${nanoid(32)}`, createdAt: now };
+    const newEnv: Environment = { id: nanoid(), projectId: env.projectId, name: env.name, key: `ff_${nanoid(32)}`, secretKey: `ffs_${nanoid(32)}`, createdAt: now };
     this.data.environments.push(newEnv);
 
     // Auto-backfill flags
@@ -100,10 +112,22 @@ export class JsonStorage implements Storage {
     return this.data.environments.find(e => e.key === key) ?? null;
   }
 
-  async regenerateEnvironmentKey(envId: string): Promise<Environment> {
+  async getEnvironmentByAnyKey(token: string): Promise<{ environment: Environment; role: ApiKeyRole } | null> {
+    const byClient = this.data.environments.find(e => e.key === token);
+    if (byClient) return { environment: { ...byClient }, role: 'client' };
+    const bySecret = this.data.environments.find(e => e.secretKey === token);
+    if (bySecret) return { environment: { ...bySecret }, role: 'secret' };
+    return null;
+  }
+
+  async regenerateEnvironmentKey(envId: string, role: ApiKeyRole): Promise<Environment> {
     const env = this.data.environments.find(e => e.id === envId);
     if (!env) throw new Error('Environment not found');
-    env.key = `ff_${nanoid(32)}`;
+    if (role === 'client') {
+      env.key = `ff_${nanoid(32)}`;
+    } else {
+      env.secretKey = `ffs_${nanoid(32)}`;
+    }
     this.save();
     return { ...env };
   }
