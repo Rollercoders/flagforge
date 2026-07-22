@@ -1,9 +1,21 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { Storage, Flag } from '../types';
 import { AuthRequest } from '../middleware/auth';
 
 export function createFlagsRouter(storage: Storage) {
   const router = Router();
+
+  // Le API key di environment sono di sola lettura: bloccano ogni scrittura
+  // sui flag prima di raggiungere gli handler. La scrittura resta disponibile
+  // solo tramite la sessione admin (UI). Gli handler di scrittura sono lasciati
+  // intatti sotto la guardia: verranno riabilitati quando esisteranno API key
+  // con permessi di scrittura dedicati.
+  const denyWrites = (_req: AuthRequest, res: Response) => {
+    res.status(403).json({ error: 'API keys are read-only; use the admin UI to modify flags' });
+  };
+  router.post('/', denyWrites);
+  router.patch('/:key', denyWrites);
+  router.delete('/:key', denyWrites);
 
   router.post('/', async (req: AuthRequest, res) => {
     try {
