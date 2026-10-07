@@ -14,12 +14,14 @@ describe('buildConfigFromAnswers', () => {
   it('maps answers to ServerConfig', () => {
     const cfg = buildConfigFromAnswers({
       port: 8080,
+      host: '0.0.0.0',
       storageType: 'json',
       storagePath: './data/flags.json',
       adminPassword: 'secret',
     });
     expect(cfg).toEqual({
       port: 8080,
+      host: '0.0.0.0',
       storageType: 'json',
       storagePath: './data/flags.json',
       adminPassword: 'secret',
@@ -29,11 +31,22 @@ describe('buildConfigFromAnswers', () => {
   it('omits adminPassword when empty string', () => {
     const cfg = buildConfigFromAnswers({
       port: 6789,
+      host: 'localhost',
       storageType: 'sqlite',
       storagePath: './data/flagforge.db',
       adminPassword: '',
     });
     expect(cfg.adminPassword).toBeUndefined();
+  });
+
+  it('falls back to 127.0.0.1 when host is blank', () => {
+    const cfg = buildConfigFromAnswers({
+      port: 6789,
+      host: '  ',
+      storageType: 'sqlite',
+      storagePath: './data/flagforge.db',
+    });
+    expect(cfg.host).toBe('127.0.0.1');
   });
 });
 
@@ -48,6 +61,16 @@ describe('renderEnvFile', () => {
     expect(env).toContain('STORAGE_TYPE=sqlite');
     expect(env).toContain('STORAGE_PATH=./data/flagforge.db');
     expect(env).not.toContain('ADMIN_PASSWORD');
+  });
+
+  it('renders HOST line when present', () => {
+    const env = renderEnvFile({
+      port: 6789,
+      host: '192.168.1.50',
+      storageType: 'sqlite',
+      storagePath: './data/flagforge.db',
+    });
+    expect(env).toContain('HOST=192.168.1.50');
   });
 
   it('renders admin password line when present', () => {
@@ -71,7 +94,7 @@ describe('renderEnvFile with mcpToken', () => {
     expect(env).not.toContain('MCP_TOKEN');
   });
   it('buildConfigFromAnswers propagates mcpToken', () => {
-    const cfg = buildConfigFromAnswers({ port: 1, storageType: 'json', storagePath: 'x', mcpToken: 't' });
+    const cfg = buildConfigFromAnswers({ port: 1, host: 'localhost', storageType: 'json', storagePath: 'x', mcpToken: 't' });
     expect(cfg.mcpToken).toBe('t');
   });
 });

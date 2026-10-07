@@ -51,13 +51,13 @@
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^1.6.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "better-sqlite3": "^12.11.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.22.2",
-    "nanoid": "^5.0.4",
+    "nanoid": "^5.1.16",
     "zod": "^4.4.3"
   },
   "devDependencies": {

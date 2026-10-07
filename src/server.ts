@@ -26,6 +26,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface ServerConfig {
   port: number;
+  /** Address to bind to. Defaults to 127.0.0.1: exposing FlagForge is an explicit choice. */
+  host?: string;
   storageType: 'sqlite' | 'json';
   storagePath: string;
   adminPassword?: string;
@@ -38,6 +40,25 @@ export interface ServerConfig {
  */
 export function shouldMountMcp(token?: string): boolean {
   return typeof token === 'string' && token.trim() !== '';
+}
+
+export const DEFAULT_HOST = '127.0.0.1';
+
+/**
+ * Resolves the bind address: the given host (trimmed), or 127.0.0.1 when missing/blank.
+ * "localhost" is mapped to 127.0.0.1 too: Node may resolve it to ::1 only, which would
+ * make the server unreachable via 127.0.0.1 (e.g. from a reverse proxy).
+ */
+export function resolveHost(host?: string): string {
+  const trimmed = host?.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'localhost') return DEFAULT_HOST;
+  return trimmed;
+}
+
+/** URL shown to the user for the given bind address. */
+export function displayUrl(host: string, port: number): string {
+  const shown = host === DEFAULT_HOST ? 'localhost' : host.includes(':') ? `[${host}]` : host;
+  return `http://${shown}:${port}`;
 }
 
 export interface StartResult {
@@ -125,13 +146,16 @@ export async function startServer(config: ServerConfig): Promise<StartResult> {
     });
   });
 
-  const url = `http://localhost:${config.port}`;
+  const host = resolveHost(config.host);
+  const url = displayUrl(host, config.port);
 
   await new Promise<void>((resolve, reject) => {
-    const server = app.listen(config.port, () => resolve());
+    const server = app.listen(config.port, host, () => resolve());
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         reject(new Error(`Port ${config.port} is already in use. Choose another port or free the current one.`));
+      } else if (err.code === 'EADDRNOTAVAIL' || err.code === 'ENOTFOUND') {
+        reject(new Error(`Cannot bind to host "${host}": the address is not available on this machine. Check HOST in your .env.`));
       } else {
         reject(err);
       }
