@@ -1,7 +1,8 @@
-import { ServerConfig } from './server.js';
+import { ServerConfig, resolveHost } from './server.js';
 
 export interface WizardAnswers {
   port: number;
+  host: string;
   storageType: 'sqlite' | 'json';
   storagePath: string;
   adminPassword?: string;
@@ -15,6 +16,7 @@ export function defaultStoragePath(storageType: 'sqlite' | 'json'): string {
 export function buildConfigFromAnswers(answers: WizardAnswers): ServerConfig {
   return {
     port: answers.port,
+    host: resolveHost(answers.host),
     storageType: answers.storageType,
     storagePath: answers.storagePath,
     adminPassword: answers.adminPassword ? answers.adminPassword : undefined,
@@ -23,11 +25,14 @@ export function buildConfigFromAnswers(answers: WizardAnswers): ServerConfig {
 }
 
 export function renderEnvFile(config: ServerConfig): string {
-  const lines = [
-    `PORT=${config.port}`,
+  const lines = [`PORT=${config.port}`];
+  if (config.host) {
+    lines.push(`HOST=${config.host}`);
+  }
+  lines.push(
     `STORAGE_TYPE=${config.storageType}`,
     `STORAGE_PATH=${config.storagePath}`,
-  ];
+  );
   if (config.adminPassword) {
     lines.push(`ADMIN_PASSWORD=${config.adminPassword}`);
   }

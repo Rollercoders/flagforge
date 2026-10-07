@@ -6,7 +6,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { intro, outro, text, password, select, confirm, isCancel, cancel, note, log } from '@clack/prompts';
 import { nanoid } from 'nanoid';
-import { startServer, ServerConfig } from './server.js';
+import { startServer, ServerConfig, resolveHost } from './server.js';
 import {
   buildConfigFromAnswers,
   defaultStoragePath,
@@ -72,6 +72,12 @@ async function runInit(): Promise<void> {
   });
   if (isCancel(portRaw)) bail();
 
+  const host = await text({
+    message: 'Which address should FlagForge listen on? (localhost = this machine only; 0.0.0.0 = all interfaces)',
+    initialValue: 'localhost',
+  });
+  if (isCancel(host)) bail();
+
   const storageType = await select({
     message: 'Which storage do you want to use?',
     options: [
@@ -102,6 +108,7 @@ async function runInit(): Promise<void> {
 
   const answers: WizardAnswers = {
     port: Number(portRaw),
+    host,
     storageType: storageType as 'sqlite' | 'json',
     storagePath: storagePath,
     adminPassword: adminPassword.trim() || undefined,
@@ -147,6 +154,7 @@ async function runStart(): Promise<void> {
 
   const config: ServerConfig = {
     port: Number(process.env.PORT) || 6789,
+    host: resolveHost(process.env.HOST),
     storageType: (process.env.STORAGE_TYPE as 'sqlite' | 'json') || 'sqlite',
     storagePath: process.env.STORAGE_PATH || './data/flagforge.db',
     adminPassword: process.env.ADMIN_PASSWORD,

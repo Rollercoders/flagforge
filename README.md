@@ -26,7 +26,7 @@ Open-source, on-premise feature flagging platform built for speed and simplicity
 npx flagforge init
 ```
 
-An interactive wizard asks for the port, storage backend and admin password,
+An interactive wizard asks for the port, listen address, storage backend and admin password,
 creates `.env` and `data/` in the current directory, and starts the server right
 away. To restart later without reconfiguring:
 
@@ -47,9 +47,18 @@ Edit `.env`:
 
 ```env
 PORT=3000
+HOST=localhost # optional, see below
 STORAGE_TYPE=sqlite # or "json"
 STORAGE_PATH=./data/flagforge.db
 ```
+
+`HOST` is the address FlagForge listens on. When it is not set (or set to
+`localhost`), FlagForge listens on `127.0.0.1` only, so it is reachable just from
+the machine it runs on. To make
+it reachable from other machines, set it explicitly: `HOST=0.0.0.0` for all
+interfaces, or a specific IP of the machine. Exposing it is your call — if you do,
+put it behind a reverse proxy with HTTPS. If a reverse proxy runs on the same
+machine, keep the default.
 
 ### Running
 
